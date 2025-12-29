@@ -10,16 +10,17 @@ public abstract class MicroDbContext : IDisposable
     private readonly string _filePath;
     private readonly StorageManager _storageManager;
     private readonly ChangeTracker _changeTracker;
-    private readonly ThreadSafetyManager _threadSafety;
+    private readonly FileDataCache _sharedCache;
     private readonly Dictionary<string, object> _dbSets = new();
     private readonly Dictionary<string, Type> _tableTypes = new();
+    private bool _disposed = false;
 
     protected MicroDbContext(string filePath)
     {
         _filePath = filePath;
+        _sharedCache = SharedDataCache.GetOrCreateCache(filePath);
         _storageManager = new StorageManager(filePath);
         _changeTracker = new ChangeTracker();
-        _threadSafety = new ThreadSafetyManager();
 
         InitializeDbSets();
         _storageManager.Initialize(_tableTypes);
@@ -53,27 +54,30 @@ public abstract class MicroDbContext : IDisposable
             var entityType = property.PropertyType.GetGenericArguments()[0];
             var tableName = property.Name;
 
-            // Load entities from storage
-            var loadMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.LoadTable))!
+            // Use helper method to load table data with proper generic type handling
+            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelper), 
+                BindingFlags.NonPublic | BindingFlags.Instance)!
                 .MakeGenericMethod(entityType);
-            var entities = loadMethod.Invoke(_storageManager, new object[] { tableName });
-
-            // Create DbSet instance
-            var dbSetType = typeof(DbSet<>).MakeGenericType(entityType);
-            var dbSet = Activator.CreateInstance(dbSetType, 
-                BindingFlags.Instance | BindingFlags.NonPublic, 
-                null, 
-                new object[] { entities!, _changeTracker, tableName }, 
-                null);
-
+            
+            var dbSet = helperMethod.Invoke(this, new object[] { tableName });
+            
             property.SetValue(this, dbSet);
             _dbSets[tableName] = dbSet!;
         }
     }
 
+    private DbSet<T> LoadTableHelper<T>(string tableName) where T : class, new()
+    {
+        // Load entities from shared cache (or from storage if not cached)
+        var entities = _sharedCache.GetOrLoadTableData<T>(tableName, () => _storageManager.LoadTable<T>(tableName));
+        
+        // Create and return DbSet instance with shared cache for synchronization
+        return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
+    }
+
     public void SaveChanges()
     {
-        _threadSafety.EnterWriteLock();
+        _sharedCache.EnterWriteLock();
         try
         {
             foreach (var kvp in _dbSets)
@@ -118,12 +122,16 @@ public abstract class MicroDbContext : IDisposable
         finally
         {
             _changeTracker.Clear();
-            _threadSafety.ExitWriteLock();
+            _sharedCache.ExitWriteLock();
         }
     }
 
     public void Dispose()
     {
-        _threadSafety.Dispose();
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        SharedDataCache.ReleaseCache(_filePath);
     }
 }
