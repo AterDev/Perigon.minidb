@@ -79,6 +79,11 @@ public class StorageManager
     private void WriteTableMetadata(BinaryWriter writer, TableMetadata metadata)
     {
         var nameBytes = Encoding.UTF8.GetBytes(metadata.TableName);
+        if (nameBytes.Length > 64)
+        {
+            throw new InvalidOperationException(
+                $"Table name '{metadata.TableName}' exceeds the 64-byte limit in UTF-8 encoding.");
+        }
         writer.Write(nameBytes);
         writer.Write(new byte[64 - nameBytes.Length]); // Pad to 64 bytes
         writer.Write(metadata.RecordCount);
@@ -99,7 +104,7 @@ public class StorageManager
 
         var version = reader.ReadInt16();
         if (version != VERSION)
-            throw new InvalidDataException($"Unsupported database version: {version}");
+            throw new InvalidDataException($"Unsupported database version: {version}. Expected version: {VERSION}.");
 
         var tableCount = reader.ReadInt16();
         reader.ReadBytes(248); // Skip reserved
@@ -127,10 +132,9 @@ public class StorageManager
     public List<T> LoadTable<T>(string tableName) where T : new()
     {
         var result = new List<T>();
-        if (!_tables.ContainsKey(tableName))
+        if (!_tables.TryGetValue(tableName, out var tableMetadata))
             return result;
 
-        var tableMetadata = _tables[tableName];
         if (tableMetadata.RecordCount == 0)
             return result;
 
@@ -190,19 +194,24 @@ public class StorageManager
             file.WriteByte(1); // Set IsDeleted flag
         }
 
-        // Update table metadata
-        UpdateTableMetadata(tableName);
+        // Update table metadata in the same file stream
+        UpdateTableMetadata(tableName, file);
     }
 
     private void UpdateTableMetadata(string tableName)
+    {
+        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite);
+        UpdateTableMetadata(tableName, file);
+    }
+
+    private void UpdateTableMetadata(string tableName, FileStream file)
     {
         var tableMetadata = _tables[tableName];
         var tableIndex = _tables.Keys.ToList().IndexOf(tableName);
         long metadataOffset = FILE_HEADER_SIZE + tableIndex * TABLE_META_SIZE;
 
-        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite);
         file.Seek(metadataOffset, SeekOrigin.Begin);
-        using var writer = new BinaryWriter(file);
+        using var writer = new BinaryWriter(file, Encoding.UTF8, leaveOpen: true);
         WriteTableMetadata(writer, tableMetadata);
     }
 
@@ -290,7 +299,23 @@ public class StorageManager
         }
         else if (underlyingType == typeof(DateTime))
         {
-            var utcTime = ((DateTime)value).ToUniversalTime();
+            var dt = (DateTime)value;
+            DateTime utcTime;
+
+            if (dt.Kind == DateTimeKind.Utc)
+            {
+                utcTime = dt;
+            }
+            else if (dt.Kind == DateTimeKind.Local)
+            {
+                utcTime = dt.ToUniversalTime();
+            }
+            else // DateTimeKind.Unspecified
+            {
+                // Treat unspecified kind as UTC without applying a time zone offset
+                utcTime = DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+            }
+
             BitConverter.GetBytes(utcTime.Ticks).CopyTo(buffer, offset);
         }
     }
@@ -350,15 +375,16 @@ public class StorageManager
 
     private EntityMetadata GetOrCreateEntityMetadata(Type type)
     {
-        if (!_entityMetadataCache.ContainsKey(type))
+        if (!_entityMetadataCache.TryGetValue(type, out var metadata))
         {
-            _entityMetadataCache[type] = EntityMetadata.Create(type);
+            metadata = EntityMetadata.Create(type);
+            _entityMetadataCache[type] = metadata;
         }
-        return _entityMetadataCache[type];
+        return metadata;
     }
 
     public TableMetadata? GetTableMetadata(string tableName)
     {
-        return _tables.ContainsKey(tableName) ? _tables[tableName] : null;
+        return _tables.TryGetValue(tableName, out var tableMetadata) ? tableMetadata : null;
     }
 }

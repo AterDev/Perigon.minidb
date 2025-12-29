@@ -114,17 +114,16 @@ public abstract class MicroDbContext : IDisposable
                     saveMethod.Invoke(_storageManager, new object[] { tableName, addedList, modifiedList, deletedList });
                 }
             }
-
-            _changeTracker.Clear();
         }
         finally
         {
+            _changeTracker.Clear();
             _threadSafety.ExitWriteLock();
         }
     }
 
     public void Dispose()
     {
-        _threadSafety?.Dispose();
+        _threadSafety.Dispose();
     }
 }

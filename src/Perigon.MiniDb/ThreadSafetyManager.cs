@@ -29,6 +29,6 @@ public class ThreadSafetyManager : IDisposable
 
     public void Dispose()
     {
-        _lock?.Dispose();
+        _lock.Dispose();
     }
 }

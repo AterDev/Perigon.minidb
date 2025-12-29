@@ -74,9 +74,13 @@ public static class FieldSizeCalculator
             baseSize = 8;
         else if (underlyingType == typeof(string))
         {
-            // Read from [MaxLength] attribute, default to 1024
+            // Require [MaxLength] attribute to determine fixed size for string fields
             var maxLengthAttr = property.GetCustomAttribute<MaxLengthAttribute>();
-            return maxLengthAttr?.Length ?? 1024;
+            if (maxLengthAttr is null)
+                throw new InvalidOperationException(
+                    $"String property '{property.DeclaringType?.Name}.{property.Name}' must be decorated with [MaxLength] to determine its fixed size.");
+
+            return maxLengthAttr.Length;
         }
         else
             throw new NotSupportedException($"Type {type.Name} is not supported");
