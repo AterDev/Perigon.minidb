@@ -95,9 +95,23 @@ public abstract class MicroDbContext : IDisposable
 
                 if (added.Count > 0 || modified.Count > 0 || deleted.Count > 0)
                 {
+                    // Convert List<object> to List<TEntity> using reflection
+                    var listType = typeof(List<>).MakeGenericType(entityType);
+                    var addedList = Activator.CreateInstance(listType)!;
+                    var modifiedList = Activator.CreateInstance(listType)!;
+                    var deletedList = Activator.CreateInstance(listType)!;
+                    
+                    var addMethod = listType.GetMethod("Add")!;
+                    foreach (var item in added)
+                        addMethod.Invoke(addedList, new[] { item });
+                    foreach (var item in modified)
+                        addMethod.Invoke(modifiedList, new[] { item });
+                    foreach (var item in deleted)
+                        addMethod.Invoke(deletedList, new[] { item });
+
                     var saveMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.SaveChanges))!
                         .MakeGenericMethod(entityType);
-                    saveMethod.Invoke(_storageManager, new object[] { tableName, added, modified, deleted });
+                    saveMethod.Invoke(_storageManager, new object[] { tableName, addedList, modifiedList, deletedList });
                 }
             }
 
