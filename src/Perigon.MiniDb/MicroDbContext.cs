@@ -71,8 +71,8 @@ public abstract class MicroDbContext : IDisposable
         // Load entities from shared cache (or from storage if not cached)
         var entities = _sharedCache.GetOrLoadTableData<T>(tableName, () => _storageManager.LoadTable<T>(tableName));
         
-        // Create and return DbSet instance
-        return new DbSet<T>(entities, _changeTracker, tableName);
+        // Create and return DbSet instance with shared cache for synchronization
+        return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
     }
 
     public void SaveChanges()

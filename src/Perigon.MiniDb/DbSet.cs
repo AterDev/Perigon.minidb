@@ -10,32 +10,42 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
     private readonly List<TEntity> _entities;
     private readonly ChangeTracker _changeTracker;
     private readonly string _tableName;
+    private readonly FileDataCache _sharedCache;
 
-    internal DbSet(List<TEntity> entities, ChangeTracker changeTracker, string tableName)
+    internal DbSet(List<TEntity> entities, ChangeTracker changeTracker, string tableName, FileDataCache sharedCache)
     {
         _entities = entities;
         _changeTracker = changeTracker;
         _tableName = tableName;
+        _sharedCache = sharedCache;
     }
 
     public void Add(TEntity entity)
     {
-        // Assign next Id
-        var idProperty = typeof(TEntity).GetProperty("Id");
-        if (idProperty != null && idProperty.PropertyType == typeof(int))
+        _sharedCache.EnterWriteLock();
+        try
         {
-            var currentId = (int)idProperty.GetValue(entity)!;
-            if (currentId == 0)
+            // Assign next Id
+            var idProperty = typeof(TEntity).GetProperty("Id");
+            if (idProperty != null && idProperty.PropertyType == typeof(int))
             {
-                var maxId = _entities.Count > 0 
-                    ? _entities.Max(e => (int)idProperty.GetValue(e)!) 
-                    : 0;
-                idProperty.SetValue(entity, maxId + 1);
+                var currentId = (int)idProperty.GetValue(entity)!;
+                if (currentId == 0)
+                {
+                    var maxId = _entities.Count > 0 
+                        ? _entities.Max(e => (int)idProperty.GetValue(e)!) 
+                        : 0;
+                    idProperty.SetValue(entity, maxId + 1);
+                }
             }
-        }
 
-        _entities.Add(entity);
-        _changeTracker.TrackAdded(entity);
+            _entities.Add(entity);
+            _changeTracker.TrackAdded(entity);
+        }
+        finally
+        {
+            _sharedCache.ExitWriteLock();
+        }
     }
 
     public void Update(TEntity entity)
@@ -45,13 +55,30 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
 
     public void Remove(TEntity entity)
     {
-        _entities.Remove(entity);
-        _changeTracker.TrackDeleted(entity);
+        _sharedCache.EnterWriteLock();
+        try
+        {
+            _entities.Remove(entity);
+            _changeTracker.TrackDeleted(entity);
+        }
+        finally
+        {
+            _sharedCache.ExitWriteLock();
+        }
     }
 
     public IEnumerator<TEntity> GetEnumerator()
     {
-        return _entities.GetEnumerator();
+        _sharedCache.EnterReadLock();
+        try
+        {
+            // Create a snapshot to avoid holding the lock during iteration
+            return _entities.ToList().GetEnumerator();
+        }
+        finally
+        {
+            _sharedCache.ExitReadLock();
+        }
     }
 
     IEnumerator IEnumerable.GetEnumerator()
@@ -59,5 +86,19 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
         return GetEnumerator();
     }
 
-    public int Count => _entities.Count;
+    public int Count 
+    { 
+        get
+        {
+            _sharedCache.EnterReadLock();
+            try
+            {
+                return _entities.Count;
+            }
+            finally
+            {
+                _sharedCache.ExitReadLock();
+            }
+        }
+    }
 }

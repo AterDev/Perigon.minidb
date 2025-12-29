@@ -8,6 +8,39 @@ internal static class SharedDataCache
 {
     private static readonly Dictionary<string, FileDataCache> _caches = new();
     private static readonly ReaderWriterLockSlim _cacheLock = new(LockRecursionPolicy.NoRecursion);
+    private static int _isDisposed;
+
+    static SharedDataCache()
+    {
+        // Ensure cleanup of shared resources at process/AppDomain shutdown
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => Cleanup();
+        AppDomain.CurrentDomain.DomainUnload += (_, _) => Cleanup();
+    }
+
+    private static void Cleanup()
+    {
+        // Ensure Cleanup is only executed once
+        if (Interlocked.Exchange(ref _isDisposed, 1) == 1)
+        {
+            return;
+        }
+
+        _cacheLock.EnterWriteLock();
+        try
+        {
+            foreach (var cache in _caches.Values)
+            {
+                cache.Dispose();
+            }
+
+            _caches.Clear();
+        }
+        finally
+        {
+            _cacheLock.ExitWriteLock();
+            _cacheLock.Dispose();
+        }
+    }
 
     /// <summary>
     /// Gets or creates a shared cache for the specified file path
@@ -38,6 +71,7 @@ internal static class SharedDataCache
 
                 cache = new FileDataCache(normalizedPath);
                 _caches[normalizedPath] = cache;
+                cache.IncrementRefCount();
                 return cache;
             }
             finally
@@ -62,13 +96,11 @@ internal static class SharedDataCache
         _cacheLock.EnterWriteLock();
         try
         {
-            if (_caches.TryGetValue(normalizedPath, out var cache))
+            if (_caches.TryGetValue(normalizedPath, out var cache) &&
+                cache.DecrementRefCount() == 0)
             {
-                if (cache.DecrementRefCount() == 0)
-                {
-                    _caches.Remove(normalizedPath);
-                    cacheToDispose = cache;
-                }
+                _caches.Remove(normalizedPath);
+                cacheToDispose = cache;
             }
         }
         finally
@@ -89,7 +121,7 @@ internal class FileDataCache : IDisposable
     private readonly string _filePath;
     private readonly Dictionary<string, object> _tableData = new();
     private readonly ReaderWriterLockSlim _dataLock = new(LockRecursionPolicy.NoRecursion);
-    private int _refCount = 1;
+    private int _refCount = 0;
     private int _disposed = 0;
 
     public FileDataCache(string filePath)
@@ -179,7 +211,7 @@ internal class FileDataCache : IDisposable
     public void Dispose()
     {
         // Use CompareExchange for thread-safe disposal check
-        if (Interlocked.CompareExchange(ref _disposed, 1, 0) == 1)
+        if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
         _dataLock.Dispose();
