@@ -86,15 +86,16 @@ internal class FileDataCache : IDisposable
     private readonly Dictionary<string, object> _tableData = new();
     private readonly ReaderWriterLockSlim _dataLock = new(LockRecursionPolicy.NoRecursion);
     private int _refCount = 1;
+    private bool _disposed = false;
 
     public FileDataCache(string filePath)
     {
         _filePath = filePath;
     }
 
-    public void IncrementRefCount()
+    public int IncrementRefCount()
     {
-        Interlocked.Increment(ref _refCount);
+        return Interlocked.Increment(ref _refCount);
     }
 
     public int DecrementRefCount()
@@ -173,6 +174,10 @@ internal class FileDataCache : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         _dataLock.Dispose();
     }
 }
