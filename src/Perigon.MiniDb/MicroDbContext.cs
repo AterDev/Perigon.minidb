@@ -13,6 +13,7 @@ public abstract class MicroDbContext : IDisposable
     private readonly FileDataCache _sharedCache;
     private readonly Dictionary<string, object> _dbSets = new();
     private readonly Dictionary<string, Type> _tableTypes = new();
+    private bool _disposed = false;
 
     protected MicroDbContext(string filePath)
     {
@@ -127,6 +128,10 @@ public abstract class MicroDbContext : IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+            return;
+
+        _disposed = true;
         SharedDataCache.ReleaseCache(_filePath);
     }
 }
