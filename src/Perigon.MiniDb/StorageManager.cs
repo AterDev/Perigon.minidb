@@ -84,7 +84,7 @@ public class StorageManager
         writer.Write(metadata.RecordCount);
         writer.Write(metadata.RecordSize);
         writer.Write(metadata.DataStartOffset);
-        writer.Write(new byte[48]); // Reserved (128 - 64 - 4 - 4 - 8 - 4 = 44, but we use 48 for alignment)
+        writer.Write(new byte[48]); // Reserved (128 total - 64 name - 4 count - 4 size - 8 offset = 48)
     }
 
     private void LoadDatabase()
@@ -259,6 +259,17 @@ public class StorageManager
             var str = (string?)value ?? "";
             var bytes = Encoding.UTF8.GetBytes(str);
             int copyLength = Math.Min(bytes.Length, size);
+            
+            // Ensure we don't split UTF-8 multi-byte characters
+            if (copyLength < bytes.Length && copyLength > 0)
+            {
+                // Scan backwards to find a valid UTF-8 character boundary
+                while (copyLength > 0 && (bytes[copyLength] & 0xC0) == 0x80)
+                {
+                    copyLength--;
+                }
+            }
+            
             Array.Copy(bytes, 0, buffer, offset, copyLength);
         }
         else if (underlyingType == typeof(int))
