@@ -129,17 +129,47 @@
             <Setter Property="Background" Value="#007ACC"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
+
+        <!-- Menu Style -->
+        <Style TargetType="Menu">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        </Style>
+
+        <!-- MenuItem Style -->
+        <Style TargetType="MenuItem">
+            <Setter Property="Background" Value="#2D2D30"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Style.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!-- Menu Bar -->
+        <Menu Grid.Row="0" Background="#2D2D30" Foreground="{StaticResource TextBrush}">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Create Sample Database" Click="CreateSampleDatabase_Click"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="Exit_Click"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Click="About_Click"/>
+            </MenuItem>
+        </Menu>
+
         <!-- Toolbar -->
-        <Border Grid.Row="0" Background="#2D2D30" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10">
+        <Border Grid.Row="1" Background="#2D2D30" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -166,7 +196,7 @@
         </Border>
 
         <!-- Main Content -->
-        <Grid Grid.Row="1" Margin="10">
+        <Grid Grid.Row="2" Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="250"/>
                 <ColumnDefinition Width="5"/>
@@ -223,7 +253,7 @@
         </Grid>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2">
+        <StatusBar Grid.Row="3">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}" Foreground="White"/>
             </StatusBarItem>

@@ -190,18 +190,16 @@ public class MainViewModel : INotifyPropertyChanged
             }
 
             // Try to connect with timeout handling
-            var timeout = TimeSpan.FromSeconds(2);
-            var cts = new CancellationTokenSource(timeout);
-
             try
             {
-                // Create a dynamic DbContext that can load any database
-                _currentContext = new DynamicDbContext(SelectedConnection.Path);
+                // Use SampleDbContext for demonstration
+                // In a real application, this would need to dynamically load entity types
+                _currentContext = new Sample.SampleDbContext(SelectedConnection.Path);
                 LoadTableNames();
                 IsConnected = true;
                 StatusMessage = $"Connected to '{SelectedConnection.Name}'";
             }
-            catch (OperationCanceledException)
+            catch (IOException)
             {
                 MessageBox.Show(
                     "The database file is locked by another process. Please close the other application and try again.",
@@ -411,16 +409,5 @@ public class MainViewModel : INotifyPropertyChanged
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-/// <summary>
-/// A dynamic DbContext that doesn't require specific entity types
-/// This is a placeholder for demonstration - actual implementation would need to load metadata
-/// </summary>
-public class DynamicDbContext : MicroDbContext
-{
-    public DynamicDbContext(string filePath) : base(filePath)
-    {
     }
 }
