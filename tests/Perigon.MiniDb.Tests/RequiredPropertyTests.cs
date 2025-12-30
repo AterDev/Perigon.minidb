@@ -19,7 +19,7 @@ public class EntityWithRequired : IMicroEntity
 }
 
 // 测试 DbContext
-public class RequiredTestContext(string filePath) : MicroDbContext(filePath)
+public class RequiredTestContext : MiniDbContext
 {
     public DbSet<EntityWithRequired> Entities { get; set; } = null!;
 }
@@ -34,6 +34,7 @@ public class RequiredPropertyTests : IAsyncDisposable
     public RequiredPropertyTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_required_{Guid.NewGuid()}.mdb");
+        MiniDbConfiguration.AddDbContext<RequiredTestContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
@@ -50,7 +51,7 @@ public class RequiredPropertyTests : IAsyncDisposable
     [Fact]
     public async Task RequiredProperties_CanBeUsedWithDbSet()
     {
-        var db = new RequiredTestContext(_testDbPath);
+        var db = new RequiredTestContext();
         await using (db)
         {
             // 使用对象初始化器设置 required 属性
@@ -71,7 +72,7 @@ public class RequiredPropertyTests : IAsyncDisposable
     [Fact]
     public async Task RequiredProperties_SaveAndLoadCorrectly()
     {
-        var db = new RequiredTestContext(_testDbPath);
+        var db = new RequiredTestContext();
         await using (db)
         {
             var entity = new EntityWithRequired
@@ -87,7 +88,7 @@ public class RequiredPropertyTests : IAsyncDisposable
 
         // 重新加载
         await RequiredTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new RequiredTestContext(_testDbPath);
+        var db2 = new RequiredTestContext();
         await using (db2)
         {
             var loaded = db2.Entities.First();
@@ -102,7 +103,7 @@ public class RequiredPropertyTests : IAsyncDisposable
     [Fact]
     public async Task RequiredProperties_UpdateWorks()
     {
-        var db = new RequiredTestContext(_testDbPath);
+        var db = new RequiredTestContext();
         await using (db)
         {
             var entity = new EntityWithRequired
@@ -124,7 +125,7 @@ public class RequiredPropertyTests : IAsyncDisposable
 
         // 重新加载并验证
         await RequiredTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new RequiredTestContext(_testDbPath);
+        var db2 = new RequiredTestContext();
         await using (db2)
         {
             var loaded = db2.Entities.First();

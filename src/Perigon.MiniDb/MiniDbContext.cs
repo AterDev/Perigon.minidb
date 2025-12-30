@@ -9,7 +9,7 @@ namespace Perigon.MiniDb;
 /// DbContext instances only operate on shared in-memory data, never directly on files.
 /// File operations are handled by the shared write queue.
 /// </summary>
-public abstract class MicroDbContext : IDisposable, IAsyncDisposable
+public abstract class MiniDbContext : IDisposable, IAsyncDisposable
 {
     private readonly string _filePath;
     private readonly StorageManager _storageManager;
@@ -20,15 +20,21 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     private bool _disposed = false;
 
     // Cache for table loading delegates to avoid repeated reflection
-    private static readonly ConcurrentDictionary<Type, List<Func<MicroDbContext, CancellationToken, Task>>> _loadingDelegatesCache = new();
+    private static readonly ConcurrentDictionary<Type, List<Func<MiniDbContext, CancellationToken, Task>>> _loadingDelegatesCache = new();
     // Cache for table type initialization delegates
-    private static readonly ConcurrentDictionary<Type, Action<MicroDbContext>> _initializationDelegatesCache = new();
+    private static readonly ConcurrentDictionary<Type, Action<MiniDbContext>> _initializationDelegatesCache = new();
 
-    protected MicroDbContext(string filePath)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MiniDbContext"/> class.
+    /// The configuration must be registered via <see cref="MiniDbConfiguration.AddDbContext{TContext}"/> beforehand.
+    /// </summary>
+    protected MiniDbContext()
     {
-        _filePath = filePath;
-        _sharedCache = SharedDataCache.GetOrCreateCache(filePath);
-        _storageManager = new StorageManager(filePath, _sharedCache.WriteQueue);
+        var options = MiniDbConfiguration.GetOptions(GetType());
+        _filePath = options.FilePath!;
+        
+        _sharedCache = SharedDataCache.GetOrCreateCache(_filePath);
+        _storageManager = new StorageManager(_filePath, _sharedCache.WriteQueue);
         _changeTracker = new ChangeTracker();
 
         InitializeDbSets();
@@ -49,7 +55,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
                 .Where(p => p.PropertyType.IsGenericType &&
                             p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>));
 
-            var actions = new List<Action<MicroDbContext>>();
+            var actions = new List<Action<MiniDbContext>>();
             foreach (var prop in properties)
             {
                 var entityType = prop.PropertyType.GetGenericArguments()[0];
@@ -68,7 +74,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         var type = GetType();
         var loaders = _loadingDelegatesCache.GetOrAdd(type, t =>
         {
-            var list = new List<Func<MicroDbContext, CancellationToken, Task>>();
+            var list = new List<Func<MiniDbContext, CancellationToken, Task>>();
             var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.PropertyType.IsGenericType &&
                             p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>));
@@ -79,18 +85,18 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
                 var name = prop.Name;
 
                 // MethodInfo for LoadAndSetPropertyAsync<T>
-                var method = typeof(MicroDbContext).GetMethod(nameof(LoadAndSetPropertyAsync),
+                var method = typeof(MiniDbContext).GetMethod(nameof(LoadAndSetPropertyAsync),
                     BindingFlags.NonPublic | BindingFlags.Instance)!
                     .MakeGenericMethod(entityType);
 
                 // Create delegate using Expression tree to avoid Invoke overhead
-                var ctxParam = Expression.Parameter(typeof(MicroDbContext), "ctx");
+                var ctxParam = Expression.Parameter(typeof(MiniDbContext), "ctx");
                 var ctParam = Expression.Parameter(typeof(CancellationToken), "ct");
                 var propConst = Expression.Constant(prop);
                 var nameConst = Expression.Constant(name);
 
                 var call = Expression.Call(ctxParam, method, propConst, nameConst, ctParam);
-                var lambda = Expression.Lambda<Func<MicroDbContext, CancellationToken, Task>>(call, ctxParam, ctParam);
+                var lambda = Expression.Lambda<Func<MiniDbContext, CancellationToken, Task>>(call, ctxParam, ctParam);
 
                 list.Add(lambda.Compile());
             }
@@ -141,6 +147,11 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().Name);
+        }
+
         await _sharedCache.EnterWriteLockAsync(cancellationToken);
         try
         {

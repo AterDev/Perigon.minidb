@@ -32,7 +32,7 @@ public class UserWithNotMapped : IMicroEntity
 }
 
 // Test DbContext
-public class NotMappedTestContext(string filePath) : MicroDbContext(filePath)
+public class NotMappedTestContext : MiniDbContext
 {
     public DbSet<UserWithNotMapped> Users { get; set; } = null!;
 }
@@ -47,6 +47,7 @@ public class NotMappedTests : IAsyncDisposable
     public NotMappedTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_notmapped_{Guid.NewGuid()}.mdb");
+        MiniDbConfiguration.AddDbContext<NotMappedTestContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
@@ -63,7 +64,7 @@ public class NotMappedTests : IAsyncDisposable
     [Fact]
     public async Task NotMappedProperties_ShouldNotBePersisted()
     {
-        var db = new NotMappedTestContext(_testDbPath);
+        var db = new NotMappedTestContext();
         await using (db)
         {
             var user = new UserWithNotMapped
@@ -83,7 +84,7 @@ public class NotMappedTests : IAsyncDisposable
 
         // Reload and verify [NotMapped] properties are not loaded
         await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new NotMappedTestContext(_testDbPath);
+        var db2 = new NotMappedTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -102,7 +103,7 @@ public class NotMappedTests : IAsyncDisposable
     [Fact]
     public async Task ComputedProperties_ShouldWorkCorrectly()
     {
-        var db = new NotMappedTestContext(_testDbPath);
+        var db = new NotMappedTestContext();
         await using (db)
         {
             var user = new UserWithNotMapped
@@ -123,7 +124,7 @@ public class NotMappedTests : IAsyncDisposable
 
         // Reload and verify computed properties work
         await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new NotMappedTestContext(_testDbPath);
+        var db2 = new NotMappedTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -137,7 +138,7 @@ public class NotMappedTests : IAsyncDisposable
     [Fact]
     public async Task UpdateWithNotMappedProperties_ShouldOnlyUpdateMappedFields()
     {
-        var db = new NotMappedTestContext(_testDbPath);
+        var db = new NotMappedTestContext();
         await using (db)
         {
             var user = new UserWithNotMapped
@@ -161,7 +162,7 @@ public class NotMappedTests : IAsyncDisposable
 
         // Reload and verify only mapped property was updated
         await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new NotMappedTestContext(_testDbPath);
+        var db2 = new NotMappedTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -174,7 +175,7 @@ public class NotMappedTests : IAsyncDisposable
     [Fact]
     public async Task MultipleNotMappedProperties_ShouldAllBeIgnored()
     {
-        var db = new NotMappedTestContext(_testDbPath);
+        var db = new NotMappedTestContext();
         await using (db)
         {
             var user = new UserWithNotMapped
@@ -192,7 +193,7 @@ public class NotMappedTests : IAsyncDisposable
 
         // Reload and verify all [NotMapped] properties are ignored
         await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new NotMappedTestContext(_testDbPath);
+        var db2 = new NotMappedTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();

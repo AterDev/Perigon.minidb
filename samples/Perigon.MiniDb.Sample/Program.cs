@@ -1,5 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
-using Perigon.MiniDb;
+﻿using Perigon.MiniDb;
+using System.ComponentModel.DataAnnotations;
 
 // Define entity models
 public class User : IMicroEntity
@@ -16,7 +16,7 @@ public class User : IMicroEntity
 }
 
 // Define database context
-public class SampleDbContext(string filePath) : MicroDbContext(filePath)
+public class SampleDbContext : MiniDbContext
 {
     public DbSet<User> Users { get; set; } = null!;
 }
@@ -26,7 +26,10 @@ class Program
     static async Task Main(string[] args)
     {
         const string dbPath = "sample.mdb";
-        
+
+        // Configure MiniDb
+        MiniDbConfiguration.AddDbContext<SampleDbContext>(options => options.UseMiniDb(dbPath));
+
         Console.WriteLine("=== Perigon.MiniDb Sample ===\n");
 
         // Clean up any existing database for demo
@@ -34,7 +37,7 @@ class Program
             File.Delete(dbPath);
 
         // Create database context (automatically initialized, no InitializeAsync needed)
-        var db = new SampleDbContext(dbPath);
+        var db = new SampleDbContext();
         await using (db)
         {
             Console.WriteLine("1. Adding users...");
@@ -72,7 +75,7 @@ class Program
 
         // Reload database to verify persistence
         Console.WriteLine("5. Reloading database...");
-        var db2 = new SampleDbContext(dbPath);
+        var db2 = new SampleDbContext();
         await using (db2)
         {
             Console.WriteLine($"   Found {db2.Users.Count} users after reload:");

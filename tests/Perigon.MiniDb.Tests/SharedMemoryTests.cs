@@ -2,6 +2,12 @@ using Perigon.MiniDb;
 
 namespace Perigon.MiniDb.Tests;
 
+public class SharedMemoryTestDbContext : MiniDbContext
+{
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<Product> Products { get; set; } = null!;
+}
+
 /// <summary>
 /// Tests for shared memory architecture across multiple DbContext instances
 /// </summary>
@@ -12,11 +18,12 @@ public class SharedMemoryTests : IAsyncDisposable
     public SharedMemoryTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_shared_{Guid.NewGuid()}.mdb");
+        MiniDbConfiguration.AddDbContext<SharedMemoryTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
     {
-        await TestDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        await SharedMemoryTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         
         if (File.Exists(_testDbPath))
@@ -29,11 +36,13 @@ public class SharedMemoryTests : IAsyncDisposable
     public async Task MultipleContexts_SeeTheSameData()
     {
         // Create first context and add data
-        var db1 = new TestDbContext(_testDbPath);        db1.Users.Add(new User { Name = "Alice", Email = "alice@example.com", Age = 30, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
+        var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User { Name = "Alice", Email = "alice@example.com", Age = 30, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         
         // Create second context - should see the same data
-        var db2 = new TestDbContext(_testDbPath);        Assert.Equal(1, db1.Users.Count);
+        var db2 = new SharedMemoryTestDbContext();
+        Assert.Equal(1, db1.Users.Count);
         Assert.Equal(1, db2.Users.Count);
         
         var userFromDb1 = db1.Users.First();
@@ -49,7 +58,9 @@ public class SharedMemoryTests : IAsyncDisposable
     [Fact]
     public async Task OneContext_ChangesVisibleToOther()
     {
-        var db1 = new TestDbContext(_testDbPath);        var db2 = new TestDbContext(_testDbPath);        // Add data in db1
+        var db1 = new SharedMemoryTestDbContext();
+        var db2 = new SharedMemoryTestDbContext();
+        // Add data in db1
         db1.Users.Add(new User { Name = "Bob", Email = "bob@example.com", Age = 25, Balance = 500m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         
@@ -62,9 +73,12 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task ThreeContexts_AllSeeTheSameData()
+    public async Task ThreeContexts_SyncCorrectly()
     {
-        var db1 = new TestDbContext(_testDbPath);        var db2 = new TestDbContext(_testDbPath);        var db3 = new TestDbContext(_testDbPath);        // Add data from each context
+        var db1 = new SharedMemoryTestDbContext();
+        var db2 = new SharedMemoryTestDbContext();
+        var db3 = new SharedMemoryTestDbContext();
+        // Add data from each context
         db1.Users.Add(new User { Name = "User1", Email = "user1@example.com", Age = 20, Balance = 100m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         
@@ -85,30 +99,11 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Update_InOneContext_VisibleInOther()
+    public async Task Delete_PropagatesToOtherContexts()
     {
-        var db1 = new TestDbContext(_testDbPath);        var db2 = new TestDbContext(_testDbPath);        // Add user
-        db1.Users.Add(new User { Name = "Charlie", Email = "charlie@example.com", Age = 30, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
-        await db1.SaveChangesAsync();
-        
-        // Update in db1
-        var user1 = db1.Users.First();
-        user1.Balance = 2000m;
-        db1.Users.Update(user1);
-        await db1.SaveChangesAsync();
-        
-        // Verify update visible in db2
-        var user2 = db2.Users.First();
-        Assert.Equal(2000m, user2.Balance);
-        
-        await db1.DisposeAsync();
-        await db2.DisposeAsync();
-    }
-
-    [Fact]
-    public async Task Delete_InOneContext_VisibleInOther()
-    {
-        var db1 = new TestDbContext(_testDbPath);        var db2 = new TestDbContext(_testDbPath);        // Add user
+        var db1 = new SharedMemoryTestDbContext();
+        var db2 = new SharedMemoryTestDbContext();
+        // Add user
         db1.Users.Add(new User { Name = "Dave", Email = "dave@example.com", Age = 35, Balance = 1500m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         
@@ -127,44 +122,93 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Update_PropagatesToOtherContexts()
+    {
+        var db1 = new SharedMemoryTestDbContext();
+        var db2 = new SharedMemoryTestDbContext();
+        // Add user
+        db1.Users.Add(new User { Name = "Charlie", Email = "charlie@example.com", Age = 30, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
+        await db1.SaveChangesAsync();
+        
+        // Update in db1
+        var user1 = db1.Users.First();
+        user1.Balance = 2000m;
+        db1.Users.Update(user1);
+        await db1.SaveChangesAsync();
+        
+        // Verify update visible in db2
+        var user2 = db2.Users.First();
+        Assert.Equal(2000m, user2.Balance);
+        
+        await db1.DisposeAsync();
+        await db2.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Context_DisposeDoesNotReleaseSharedMemory()
     {
         // Create and dispose first context
-        var db1 = new TestDbContext(_testDbPath);        db1.Users.Add(new User { Name = "Eve", Email = "eve@example.com", Age = 28, Balance = 800m, CreatedAt = DateTime.UtcNow, IsActive = true });
+        var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User { Name = "Eve", Email = "eve@example.com", Age = 28, Balance = 800m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         await db1.DisposeAsync();
         
         // Create new context - should still see data (shared memory not released)
-        var db2 = new TestDbContext(_testDbPath);        Assert.Equal(1, db2.Users.Count);
+        var db2 = new SharedMemoryTestDbContext();
+        Assert.Equal(1, db2.Users.Count);
         Assert.Equal("Eve", db2.Users.First().Name);
         
         await db2.DisposeAsync();
     }
 
     [Fact]
-    public async Task ExplicitReleaseSharedCache_FreesMemory()
+    public async Task CacheRelease_ForcesReloadFromFile()
     {
-        var db1 = new TestDbContext(_testDbPath);        db1.Users.Add(new User { Name = "Frank", Email = "frank@example.com", Age = 40, Balance = 2000m, CreatedAt = DateTime.UtcNow, IsActive = true });
+        var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User { Name = "Eve", Email = "eve@example.com", Age = 28, Balance = 800m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         await db1.DisposeAsync();
         
-        // Explicitly release shared cache
-        await TestDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        // Release cache
+        await SharedMemoryTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         
-        // Create new context - should reload from file
-        var db2 = new TestDbContext(_testDbPath);        Assert.Equal(1, db2.Users.Count);
-        Assert.Equal("Frank", db2.Users.First().Name);
+        // New context should load from file
+        var db2 = new SharedMemoryTestDbContext();
+        Assert.Equal(1, db2.Users.Count);
+        Assert.Equal("Eve", db2.Users.First().Name);
         
         await db2.DisposeAsync();
     }
 
     [Fact]
-    public async Task ParallelContextCreation_AllShareSameMemory()
+    public async Task LargeData_SyncsCorrectly()
     {
-        // Create 5 contexts in parallel
-        var tasks = Enumerable.Range(0, 5).Select(async i =>
+        var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User { Name = "Frank", Email = "frank@example.com", Age = 40, Balance = 2000m, CreatedAt = DateTime.UtcNow, IsActive = true });
+        // Add large description to product
+        db1.Products.Add(new Product { Name = "Big Product", Price = 999m, IsPublished = true, LastModified = DateTime.UtcNow });
+        await db1.SaveChangesAsync();
+        
+        var db2 = new SharedMemoryTestDbContext();
+        Assert.Equal(1, db2.Users.Count);
+        Assert.Equal(1, db2.Products.Count);
+        
+        // Verify large data integrity
+        var productInDb2 = db2.Products.First();
+        Assert.Equal("Big Product", productInDb2.Name);
+        Assert.Equal(999m, productInDb2.Price);
+        
+        await db1.DisposeAsync();
+        await db2.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ParallelContextCreation_IsSafe()
+    {
+        var tasks = Enumerable.Range(0, 20).Select(async i =>
         {
-            var db = new TestDbContext(_testDbPath);            return db;
+            var db = new SharedMemoryTestDbContext();
+            return db;
         });
         
         var contexts = await Task.WhenAll(tasks);
@@ -191,9 +235,11 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task MultipleTableTypes_SharedCorrectly()
+    public async Task DifferentEntityTypes_SyncCorrectly()
     {
-        var db1 = new TestDbContext(_testDbPath);        var db2 = new TestDbContext(_testDbPath);        // Add different entity types
+        var db1 = new SharedMemoryTestDbContext();
+        var db2 = new SharedMemoryTestDbContext();
+        // Add different entity types
         db1.Users.Add(new User { Name = "UserA", Email = "usera@example.com", Age = 30, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
         db1.Products.Add(new Product { Name = "ProductA", Price = 99.99m, IsPublished = true, LastModified = DateTime.UtcNow });
         await db1.SaveChangesAsync();
@@ -214,7 +260,8 @@ public class SharedMemoryTests : IAsyncDisposable
         // Create and use 10 contexts sequentially
         for (int i = 0; i < 10; i++)
         {
-            var db = new TestDbContext(_testDbPath);            db.Users.Add(new User 
+            var db = new SharedMemoryTestDbContext();
+            db.Users.Add(new User 
             { 
                 Name = $"User{i}", 
                 Email = $"user{i}@example.com", 
@@ -232,7 +279,8 @@ public class SharedMemoryTests : IAsyncDisposable
         }
         
         // Final verification
-        var finalDb = new TestDbContext(_testDbPath);        Assert.Equal(10, finalDb.Users.Count);
+        var finalDb = new SharedMemoryTestDbContext();
+        Assert.Equal(10, finalDb.Users.Count);
         await finalDb.DisposeAsync();
     }
 }

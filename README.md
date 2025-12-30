@@ -100,19 +100,23 @@ public class User : IMicroEntity
 ```csharp
 using Perigon.MiniDb;
 
-public class MyDbContext(string filePath) : MicroDbContext(filePath)
+public class MyDbContext : MiniDbContext
 {
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
 }
 ```
 
-### 3. 使用数据库
+### 3. 配置和使用数据库
 
 ```csharp
-// 创建数据库上下文
-var db = new MyDbContext("app.mdb");
+// 1. 全局配置数据库路径（通常在程序启动时）
+MiniDbConfiguration.AddDbContext<MyDbContext>(options => options.UseMiniDb("app.mdb"));
 
+// 2. 创建数据库上下文（无需参数）
+var db = new MyDbContext();
+
+// 3. 使用数据库
 // 初始化：加载数据到内存（自动完成）
 await using (db)
 {
@@ -146,7 +150,7 @@ await using (db)
 }
 
 // 显式释放共享内存缓存（可选，通常在应用退出时调用）
-await MyDbContext.ReleaseSharedCacheAsync("app.mdb");
+await MiniDbContext.ReleaseSharedCacheAsync("app.mdb");
 ```
 
 ## 📊 支持的数据类型

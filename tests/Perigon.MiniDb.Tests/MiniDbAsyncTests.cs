@@ -42,7 +42,7 @@ public class Product : IMicroEntity
 }
 
 // Test DbContext
-public class TestDbContext(string filePath) : MicroDbContext(filePath)
+public class TestDbContext : MiniDbContext
 {
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
@@ -58,6 +58,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     public MiniDbAsyncTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_async_{Guid.NewGuid()}.mdb");
+        MiniDbConfiguration.AddDbContext<TestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
@@ -77,7 +78,8 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CanAddEntityAsync()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();
+        await using (db)
         {
             var user = new User
             {
@@ -101,7 +103,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CanAddMultipleEntitiesAsync()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             for (int i = 0; i < 10; i++)
             {
@@ -124,7 +126,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CanUpdateEntityAsync()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var user = new User
             {
@@ -146,7 +148,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
         }
 
         // Reload database to verify persistence
-        var db2 = new TestDbContext(_testDbPath);        await using (db2)
+        var db2 = new TestDbContext();        await using (db2)
         {
             var loadedUser = db2.Users.First();
             Assert.Equal("Alexandra", loadedUser.Name);
@@ -157,7 +159,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CanDeleteEntityAsync()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var user = new User
             {
@@ -181,7 +183,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
         }
 
         // Reload database to verify persistence
-        var db2 = new TestDbContext(_testDbPath);        await using (db2)
+        var db2 = new TestDbContext();        await using (db2)
         {
             Assert.Equal(0, db2.Users.Count);
         }
@@ -190,7 +192,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CanHandleLargeDatasetAsync()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             const int recordCount = 1000;
             for (int i = 0; i < recordCount; i++)
@@ -218,7 +220,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CancellationTokenWorks()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             // Add some data
             for (int i = 0; i < 100; i++)
@@ -244,7 +246,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task CancellationTokenCanCancelOperation()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             // Add large amount of data
             for (int i = 0; i < 10000; i++)
@@ -279,7 +281,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task AsyncHandlesNullableTypesCorrectly()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var product = new Product
             {
@@ -294,7 +296,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
         }
 
         // Reload and verify
-        var db2 = new TestDbContext(_testDbPath);        await using (db2)
+        var db2 = new TestDbContext();        await using (db2)
         {
             var loadedProduct = db2.Products.First();
             Assert.Equal("Test Product", loadedProduct.Name);
@@ -307,7 +309,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task AsyncHandlesNullValuesCorrectly()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var product = new Product
             {
@@ -322,7 +324,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
         }
 
         // Reload and verify
-        var db2 = new TestDbContext(_testDbPath);        await using (db2)
+        var db2 = new TestDbContext();        await using (db2)
         {
             var loadedProduct = db2.Products.First();
             Assert.Equal("Test Product", loadedProduct.Name);
@@ -335,7 +337,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task AsyncHandlesUtf8StringsCorrectly()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var user = new User
             {
@@ -352,7 +354,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
         }
 
         // Reload and verify
-        var db2 = new TestDbContext(_testDbPath);        await using (db2)
+        var db2 = new TestDbContext();        await using (db2)
         {
             var loadedUser = db2.Users.First();
             Assert.Equal("张三", loadedUser.Name);
@@ -363,7 +365,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
     [Fact]
     public async Task AsyncPerformanceIsReasonable()
     {
-        var db = new TestDbContext(_testDbPath);        await using (db)
+        var db = new TestDbContext();        await using (db)
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 

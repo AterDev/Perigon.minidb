@@ -115,7 +115,7 @@ internal class StorageManager
 
     private void LoadDatabase()
     {
-        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
+        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new BinaryReader(file);
 
         // Read file header
@@ -164,7 +164,7 @@ internal class StorageManager
 
         try
         {
-            await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite,
                 bufferSize: 4096, useAsync: true);
             file.Seek(tableMetadata.DataStartOffset, SeekOrigin.Begin);
 

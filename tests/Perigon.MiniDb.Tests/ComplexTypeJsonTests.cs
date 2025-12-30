@@ -64,7 +64,7 @@ public class UserWithComplexType : IMicroEntity
 }
 
 // 测试 DbContext
-public class ComplexTypeTestContext(string filePath) : MicroDbContext(filePath)
+public class ComplexTypeTestContext : MiniDbContext
 {
     public DbSet<UserWithComplexType> Users { get; set; } = null!;
 }
@@ -79,6 +79,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     public ComplexTypeJsonTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_complextype_{Guid.NewGuid()}.mdb");
+        MiniDbConfiguration.AddDbContext<ComplexTypeTestContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
@@ -95,7 +96,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_SerializedAsJson_CanBeStored()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -119,13 +120,32 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             Assert.Contains("123 Main St", user.AddressJsonString);
             Assert.Contains("New York", user.AddressJsonString);
         }
+
+        // Reload and verify deserialization
+        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
+        await using (db2)
+        {
+            var loaded = db2.Users.First();
+
+            // 验证基本属性
+            Assert.Equal("Alice", loaded.Name);
+            Assert.Equal("alice@example.com", loaded.Email);
+
+            // 验证复杂类型通过 getter 正确反序列化
+            Assert.NotNull(loaded.Address);
+            Assert.Equal("123 Main St", loaded.Address!.Street);
+            Assert.Equal("New York", loaded.Address.City);
+            Assert.Equal("USA", loaded.Address.Country);
+            Assert.Equal("10001", loaded.Address.ZipCode);
+        }
     }
 
     [Fact]
     public async Task ComplexType_LoadedFromJson_WorksCorrectly()
     {
         // 1. 保存带有复杂类型的实体
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -147,7 +167,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
         // 2. 重新加载并验证复杂类型
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -168,7 +188,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_NullValue_HandledCorrectly()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -185,9 +205,9 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             Assert.Equal(string.Empty, user.AddressJsonString);
         }
 
-        // 重新加载
+        // Reload
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -201,7 +221,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_UpdateAddress_UpdatesJsonString()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -235,7 +255,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
         // 重新加载并验证更新
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -251,7 +271,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_ChineseCharacters_SerializedCorrectly()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -273,7 +293,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
         // 重新加载并验证中文
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();
@@ -290,7 +310,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_MultipleUsers_AllAddressesPreserved()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             // 添加多个用户，每个有不同的地址
@@ -325,7 +345,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
         // 重新加载并验证所有地址
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loadedUsers = db2.Users.OrderBy(u => u.Name).ToList();
@@ -347,7 +367,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
     [Fact]
     public async Task ComplexType_InvalidJson_ReturnsNull()
     {
-        var db = new ComplexTypeTestContext(_testDbPath);
+        var db = new ComplexTypeTestContext();
         await using (db)
         {
             var user = new UserWithComplexType
@@ -364,7 +384,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
         // 重新加载
         await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        var db2 = new ComplexTypeTestContext(_testDbPath);
+        var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
             var loaded = db2.Users.First();

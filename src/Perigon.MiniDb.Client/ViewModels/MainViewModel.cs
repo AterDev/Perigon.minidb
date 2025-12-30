@@ -22,7 +22,7 @@ public class MainViewModel : INotifyPropertyChanged
     private DatabaseConnection? _selectedConnection;
     private string? _selectedTableName;
     private DataTable? _tableData;
-    private MicroDbContext? _currentContext;
+    private MiniDbContext? _currentContext;
     private bool _isConnected;
     private string _statusMessage = "Ready";
     private bool _isSaving = false;
@@ -201,7 +201,8 @@ public class MainViewModel : INotifyPropertyChanged
             {
                 // Use SampleDbContext for demonstration
                 // In a real application, this would need to dynamically load entity types
-                _currentContext = new Sample.SampleDbContext(SelectedConnection.Path);
+                MiniDbConfiguration.AddDbContext<Sample.SampleDbContext>(o => o.UseMiniDb(SelectedConnection.Path));
+                _currentContext = new Sample.SampleDbContext();
                 LoadTableNames();
                 IsConnected = true;
                 StatusMessage = $"Connected to '{SelectedConnection.Name}'";

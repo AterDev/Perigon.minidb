@@ -43,14 +43,10 @@ public class Category : IMicroEntity
 /// <summary>
 /// Sample database context for testing the client
 /// </summary>
-public class SampleDbContext : MicroDbContext
+public class SampleDbContext : MiniDbContext
 {
     public DbSet<Product> Products { get; set; } = null!;
     public DbSet<Category> Categories { get; set; } = null!;
-
-    public SampleDbContext(string filePath) : base(filePath)
-    {
-    }
 
     /// <summary>
     /// Create a sample database with test data
@@ -61,7 +57,8 @@ public class SampleDbContext : MicroDbContext
         if (File.Exists(filePath))
             File.Delete(filePath);
 
-        var db = new SampleDbContext(filePath);
+        MiniDbConfiguration.AddDbContext<SampleDbContext>(options => options.UseMiniDb(filePath));
+        var db = new SampleDbContext();
         await using (db)
         {
             // Add categories

@@ -40,10 +40,19 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
                 _maxId++;
                 entity.Id = _maxId;
             }
-            else if (entity.Id > _maxId)
+            else
             {
-                // Update max ID if manually specified ID is larger
-                _maxId = entity.Id;
+                // Check for duplicate ID
+                if (_entities.Any(e => e.Id == entity.Id))
+                {
+                    throw new InvalidOperationException($"An entity with ID {entity.Id} already exists in the set.");
+                }
+
+                if (entity.Id > _maxId)
+                {
+                    // Update max ID if manually specified ID is larger
+                    _maxId = entity.Id;
+                }
             }
 
             _entities.Add(entity);
