@@ -515,6 +515,10 @@ internal class StorageManager
         }
         else if (underlyingType == typeof(decimal))
         {
+            if (dataSpan.Length < 16)
+            {
+                throw new InvalidOperationException($"Insufficient data for decimal field: expected 16 bytes, got {dataSpan.Length} bytes");
+            }
             Span<int> bits = stackalloc int[4];
             for (int i = 0; i < 4; i++)
                 bits[i] = BitConverter.ToInt32(dataSpan[(i * 4)..]);

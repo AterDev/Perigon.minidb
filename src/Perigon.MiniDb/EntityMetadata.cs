@@ -27,6 +27,7 @@ public class EntityMetadata
     {
         var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite)
+            .OrderBy(p => p.Name)  // Sort by name for consistent ordering
             .ToArray();
         
         var fields = new FieldMetadata[properties.Length];
