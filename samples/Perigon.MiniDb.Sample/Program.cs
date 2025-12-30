@@ -60,6 +60,8 @@ class Program
         // Clean up existing database for demo
         if (File.Exists(dbPath))
         {
+            // Release shared cache before deleting file
+            SampleDbContext.ReleaseSharedCache(dbPath);
             File.Delete(dbPath);
             Console.WriteLine($"Cleaned up existing database: {dbPath}\n");
         }
@@ -245,7 +247,11 @@ class Program
 
         db.Dispose();
 
-        // Reopen database
+        // Note: The shared cache persists across DbContext instances
+        // This allows subsequent contexts to access the same in-memory data
+        Console.WriteLine("Note: Shared cache persists across DbContext instances for better performance");
+
+        // Reopen database - will use the same shared cache
         using var db2 = new SampleDbContext(dbPath);
         Console.WriteLine($"✓ Database reopened successfully");
         Console.WriteLine($"  Users loaded: {db2.Users.Count} (expected: {userCount})");
@@ -256,9 +262,22 @@ class Program
         Console.WriteLine($"  Alice's balance after reload: {aliceReloaded.Balance:C}");
         Console.WriteLine($"  Alice's category after reload: {aliceReloaded.CategoryId}");
 
+        db2.Dispose();
+
+        // === Demo 8: Explicit cache release ===
+        Console.WriteLine("\n--- Demo 8: Explicit Cache Release ---");
+        Console.WriteLine("When you're done with the database, explicitly release the cache:");
+        SampleDbContext.ReleaseSharedCache(dbPath);
+        Console.WriteLine("✓ Shared cache released, memory freed");
+
         Console.WriteLine("\n=== Sample Application Completed Successfully! ===");
         Console.WriteLine($"\nDatabase file: {Path.GetFullPath(dbPath)}");
         Console.WriteLine($"File size: {new FileInfo(dbPath).Length} bytes");
+        Console.WriteLine("\nKey Points:");
+        Console.WriteLine("  - DbContext instances only operate on shared in-memory data");
+        Console.WriteLine("  - File writes are handled by a background queue");
+        Console.WriteLine("  - Shared cache persists across DbContext instances");
+        Console.WriteLine("  - Call ReleaseSharedCache() to explicitly free memory");
     }
 }
 

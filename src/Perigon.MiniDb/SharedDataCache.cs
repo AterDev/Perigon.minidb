@@ -37,7 +37,9 @@ internal static class SharedDataCache
     }
 
     /// <summary>
-    /// Gets or creates a shared cache for the specified file path
+    /// Gets or creates a shared cache for the specified file path.
+    /// Note: DbContext instances do not automatically release the cache on disposal.
+    /// Call ReleaseCache() explicitly when you want to free memory resources.
     /// </summary>
     public static FileDataCache GetOrCreateCache(string filePath)
     {
@@ -48,19 +50,19 @@ internal static class SharedDataCache
         {
             if (_caches.TryGetValue(normalizedPath, out var cache))
             {
-                cache.IncrementRefCount();
                 return cache;
             }
 
             cache = new FileDataCache(normalizedPath);
             _caches[normalizedPath] = cache;
-            cache.IncrementRefCount();
             return cache;
         }
     }
 
     /// <summary>
-    /// Releases a reference to the cache. If no more references exist, removes the cache.
+    /// Explicitly releases the shared cache for the specified file path.
+    /// This should be called manually when you want to free memory resources,
+    /// not automatically on DbContext disposal.
     /// </summary>
     public static void ReleaseCache(string filePath)
     {
@@ -69,8 +71,7 @@ internal static class SharedDataCache
         FileDataCache? cacheToDispose = null;
         lock (_cacheLock)
         {
-            if (_caches.TryGetValue(normalizedPath, out var cache) &&
-                cache.DecrementRefCount() == 0)
+            if (_caches.TryGetValue(normalizedPath, out var cache))
             {
                 _caches.Remove(normalizedPath);
                 cacheToDispose = cache;
@@ -83,7 +84,9 @@ internal static class SharedDataCache
 }
 
 /// <summary>
-/// Holds the actual data cache for a single database file
+/// Holds the actual data cache for a single database file.
+/// All DbContext instances for the same file share this cache.
+/// DbContext only operates on this in-memory data, never directly on files.
 /// </summary>
 internal class FileDataCache(string filePath) : IDisposable
 {
@@ -92,18 +95,7 @@ internal class FileDataCache(string filePath) : IDisposable
     private readonly Lock _dataLock = new();
     private readonly SemaphoreSlim _asyncLock = new(1, 1);
     private readonly FileWriteQueue _writeQueue = new(filePath);
-    private int _refCount = 0;
     private int _disposed = 0;
-
-    public int IncrementRefCount()
-    {
-        return Interlocked.Increment(ref _refCount);
-    }
-
-    public int DecrementRefCount()
-    {
-        return Interlocked.Decrement(ref _refCount);
-    }
 
     /// <summary>
     /// Gets the data for a table. If not cached, loads it using the provided loader function.

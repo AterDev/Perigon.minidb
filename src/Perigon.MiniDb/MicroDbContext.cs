@@ -3,7 +3,9 @@ using System.Reflection;
 namespace Perigon.MiniDb;
 
 /// <summary>
-/// Main database context with DbSet management and SaveChanges
+/// Main database context with DbSet management and SaveChanges.
+/// DbContext instances only operate on shared in-memory data, never directly on files.
+/// File operations are handled by the shared write queue.
 /// </summary>
 public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 {
@@ -184,10 +186,10 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
         _disposed = true;
         
-        // Ensure all pending writes are completed before releasing cache
-        _sharedCache.WriteQueue.FlushAsync().GetAwaiter().GetResult();
+        // Note: We do NOT release the shared cache here.
+        // The cache persists across DbContext instances.
+        // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
         
-        SharedDataCache.ReleaseCache(_filePath);
         GC.SuppressFinalize(this);
     }
 
@@ -198,10 +200,43 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
         _disposed = true;
         
-        // Ensure all pending writes are completed before releasing cache
-        await _sharedCache.WriteQueue.FlushAsync();
+        // Note: We do NOT release the shared cache here.
+        // The cache persists across DbContext instances.
+        // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
         
-        SharedDataCache.ReleaseCache(_filePath);
+        await Task.CompletedTask;
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Explicitly releases the shared memory cache for the database file.
+    /// Call this when you want to free memory resources.
+    /// All pending writes will be flushed before releasing.
+    /// </summary>
+    public static void ReleaseSharedCache(string filePath)
+    {
+        var normalizedPath = Path.GetFullPath(filePath);
+        var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
+        
+        // Flush any pending writes before releasing
+        cache.WriteQueue.FlushAsync().GetAwaiter().GetResult();
+        
+        SharedDataCache.ReleaseCache(normalizedPath);
+    }
+
+    /// <summary>
+    /// Explicitly releases the shared memory cache for the database file (async version).
+    /// Call this when you want to free memory resources.
+    /// All pending writes will be flushed before releasing.
+    /// </summary>
+    public static async Task ReleaseSharedCacheAsync(string filePath)
+    {
+        var normalizedPath = Path.GetFullPath(filePath);
+        var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
+        
+        // Flush any pending writes before releasing
+        await cache.WriteQueue.FlushAsync();
+        
+        SharedDataCache.ReleaseCache(normalizedPath);
     }
 }
