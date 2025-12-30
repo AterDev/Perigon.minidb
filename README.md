@@ -56,8 +56,9 @@ dotnet add package Perigon.MiniDb
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
+using Perigon.MiniDb;
 
-public class User
+public class User : IMicroEntity
 {
     public int Id { get; set; }
     
@@ -78,9 +79,9 @@ public class User
 }
 ```
 
-#### 📌 实体模型限制
+#### 📌 实体模型要求
 
-1. **必须有 Id 属性**：每个实体必须包含 `public int Id { get; set; }` 属性
+1. **必须实现 IMicroEntity 接口**：每个实体必须实现 `IMicroEntity` 接口，该接口定义了 `int Id { get; set; }` 属性
 2. **字符串必须标注长度**：所有 `string` 类型属性必须使用 `[MaxLength]` 特性指定最大字节数（UTF-8编码）
 3. **支持的数据类型**：仅支持特定类型（见下表）
 
@@ -102,9 +103,7 @@ public class MyDbContext(string filePath) : MicroDbContext(filePath)
 // 创建数据库上下文
 var db = new MyDbContext("app.mdb");
 
-// 初始化：加载数据到内存（必须调用）
-await db.InitializeAsync();
-
+// 初始化：加载数据到内存（自动完成）
 await using (db)
 {
     // 添加数据
@@ -144,6 +143,7 @@ await MyDbContext.ReleaseSharedCacheAsync("app.mdb");
 
 | 类型 | 大小 | 说明 | 示例 |
 |------|------|------|------|
+| `int` (Id) | 4 字节 | **必需**: 实体标识符 | `public int Id { get; set; }` (来自 `IMicroEntity`) |
 | `int` | 4 字节 | 32位有符号整数 | `public int Age { get; set; }` |
 | `int?` | 5 字节 | 可空整数（1字节标记+4字节值） | `public int? CategoryId { get; set; }` |
 | `bool` | 1 字节 | 布尔值 | `public bool IsActive { get; set; }` |

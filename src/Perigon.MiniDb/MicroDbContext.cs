@@ -16,7 +16,6 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     private readonly Dictionary<string, object> _dbSets = [];
     private readonly Dictionary<string, Type> _tableTypes = [];
     private bool _disposed = false;
-    private bool _initialized = false;
 
     protected MicroDbContext(string filePath)
     {
@@ -32,7 +31,6 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         // This ensures DbSet properties are initialized and ready to use
         // Data is loaded from shared cache (or from file if first time)
         LoadAllTablesSynchronously();
-        _initialized = true;
     }
 
     private void InitializeDbSets()
@@ -77,7 +75,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         }
     }
 
-    private async Task<DbSet<T>> LoadTableHelperAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, new()
+    private async Task<DbSet<T>> LoadTableHelperAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
     {
         // Load entities from shared cache (or from storage if not cached)
         var entities = await _sharedCache.GetOrLoadTableDataAsync<T>(tableName,
@@ -196,7 +194,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
 
         // Flush any pending writes before releasing
-        await cache.WriteQueue.FlushAsync();
+        await cache.WriteQueue.FlushAsync().ConfigureAwait(false);
 
         SharedDataCache.ReleaseCache(normalizedPath);
     }

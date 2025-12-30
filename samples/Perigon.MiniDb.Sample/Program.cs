@@ -2,7 +2,7 @@
 using Perigon.MiniDb;
 
 // Define entity models
-public class User
+public class User : IMicroEntity
 {
     public int Id { get; set; }
 

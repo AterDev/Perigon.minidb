@@ -1,17 +1,22 @@
 using System.Collections;
 using System.Runtime.InteropServices;
+using System.Linq;
 
 namespace Perigon.MiniDb;
 
 /// <summary>
-/// Entity collection with LINQ support
+/// Entity collection with LINQ support.
+/// Uses direct property access via IMicroEntity interface for optimal performance.
 /// </summary>
-public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
+public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicroEntity, new()
 {
     private readonly List<TEntity> _entities;
     private readonly ChangeTracker _changeTracker;
     private readonly string _tableName;
     private readonly FileDataCache _sharedCache;
+    
+    // Track maximum ID for O(1) ID assignment
+    private int _maxId;
 
     internal DbSet(List<TEntity> entities, ChangeTracker changeTracker, string tableName, FileDataCache sharedCache)
     {
@@ -19,6 +24,9 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
         _changeTracker = changeTracker;
         _tableName = tableName;
         _sharedCache = sharedCache;
+        
+        // Calculate max ID once during initialization using direct property access
+        _maxId = entities.Count > 0 ? entities.Max(e => e.Id) : 0;
     }
 
     public void Add(TEntity entity)
@@ -26,22 +34,17 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
         _sharedCache.EnterWriteLock();
         try
         {
-            // Assign next Id
-            var idProperty = typeof(TEntity).GetProperty("Id");
-            if (idProperty is { PropertyType: var propType } && propType == typeof(int))
+            // Direct property access - no reflection needed
+            if (entity.Id == 0)
             {
-                var currentId = (int)idProperty.GetValue(entity)!;
-                if (currentId == 0)
-                {
-                    int maxId = 0;
-                    var span = CollectionsMarshal.AsSpan(_entities);
-                    foreach (var e in span)
-                    {
-                        var id = (int)idProperty.GetValue(e)!;
-                        if (id > maxId) maxId = id;
-                    }
-                    idProperty.SetValue(entity, maxId + 1);
-                }
+                // Auto-assign next ID
+                _maxId++;
+                entity.Id = _maxId;
+            }
+            else if (entity.Id > _maxId)
+            {
+                // Update max ID if manually specified ID is larger
+                _maxId = entity.Id;
             }
 
             _entities.Add(entity);

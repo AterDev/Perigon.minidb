@@ -4,31 +4,31 @@ using Perigon.MiniDb;
 namespace Perigon.MiniDb.Tests;
 
 // Test entities with unsupported types
-public class InvalidEntityWithLong
+public class InvalidEntityWithLong : IMicroEntity
 {
     public int Id { get; set; }
     public long UnsupportedLong { get; set; }
 }
 
-public class InvalidEntityWithDouble
+public class InvalidEntityWithDouble : IMicroEntity
 {
     public int Id { get; set; }
     public double UnsupportedDouble { get; set; }
 }
 
-public class InvalidEntityWithFloat
+public class InvalidEntityWithFloat : IMicroEntity
 {
     public int Id { get; set; }
     public float UnsupportedFloat { get; set; }
 }
 
-public class InvalidEntityWithList
+public class InvalidEntityWithList : IMicroEntity
 {
     public int Id { get; set; }
     public List<string> UnsupportedList { get; set; } = [];
 }
 
-public class InvalidEntityWithByteArray
+public class InvalidEntityWithByteArray : IMicroEntity
 {
     public int Id { get; set; }
     public byte[] UnsupportedByteArray { get; set; } = [];
@@ -44,7 +44,7 @@ public class InvalidEntityWrongIdType
     public string Id { get; set; } = string.Empty;
 }
 
-public class InvalidEntityWithStringNoMaxLength
+public class InvalidEntityWithStringNoMaxLength : IMicroEntity
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty; // Missing [MaxLength]

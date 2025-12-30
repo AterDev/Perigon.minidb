@@ -4,7 +4,7 @@ using Perigon.MiniDb;
 namespace Perigon.MiniDb.Tests;
 
 // Test entities
-public class User
+public class User : IMicroEntity
 {
     public int Id { get; set; }
 
@@ -27,7 +27,7 @@ public class User
     public DateTime? PublishedAt { get; set; }
 }
 
-public class Product
+public class Product : IMicroEntity
 {
     public int Id { get; set; }
 
