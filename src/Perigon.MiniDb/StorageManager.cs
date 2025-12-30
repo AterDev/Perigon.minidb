@@ -433,10 +433,29 @@ internal class StorageManager
         if (underlyingType == typeof(string))
         {
             var str = (string)value;
-            int bytesWritten = Encoding.UTF8.GetBytes(str, dataSpan[..dataSize]);
+            
+            // Truncate string if it's too long for the buffer
+            // This is an approximation - we'll refine below if we hit the exact boundary
+            int maxChars = Math.Min(str.Length, dataSize);
+            if (Encoding.UTF8.GetByteCount(str) > dataSize)
+            {
+                // Binary search to find the maximum number of characters that fit
+                int low = 0, high = maxChars;
+                while (low < high)
+                {
+                    int mid = (low + high + 1) / 2;
+                    if (Encoding.UTF8.GetByteCount(str.AsSpan(0, mid)) <= dataSize)
+                        low = mid;
+                    else
+                        high = mid - 1;
+                }
+                maxChars = low;
+            }
+            
+            int bytesWritten = Encoding.UTF8.GetBytes(str.AsSpan(0, maxChars), dataSpan);
 
-            // Ensure we don't split UTF-8 multi-byte characters
-            if (bytesWritten == dataSize && Encoding.UTF8.GetCharCount(dataSpan[..bytesWritten]) < str.Length)
+            // Ensure we don't split UTF-8 multi-byte characters at the boundary
+            if (bytesWritten > 0 && bytesWritten < str.Length && (dataSpan[bytesWritten - 1] & 0x80) != 0)
             {
                 // Scan backwards to find a valid UTF-8 character boundary
                 while (bytesWritten > 0 && (dataSpan[bytesWritten - 1] & 0xC0) == 0x80)

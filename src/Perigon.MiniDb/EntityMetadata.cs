@@ -20,7 +20,7 @@ public class FieldMetadata
 public class EntityMetadata
 {
     public Type EntityType { get; set; } = null!;
-    public FrozenSet<FieldMetadata> Fields { get; set; } = FrozenSet<FieldMetadata>.Empty;
+    public FieldMetadata[] Fields { get; set; } = [];
     public int RecordSize { get; set; }
 
     public static EntityMetadata Create(Type entityType)
@@ -49,7 +49,7 @@ public class EntityMetadata
         return new EntityMetadata
         {
             EntityType = entityType,
-            Fields = fields.ToFrozenSet(),
+            Fields = fields,
             RecordSize = offset
         };
     }
