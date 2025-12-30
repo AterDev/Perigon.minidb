@@ -106,6 +106,16 @@ public class DatabaseConnectionService
         var index = Connections.IndexOf(oldConnection);
         if (index >= 0)
         {
+            // Ensure the new name does not conflict with any other existing connection
+            for (int i = 0; i < Connections.Count; i++)
+            {
+                if (i == index)
+                    continue;
+
+                if (Connections[i].Name.Equals(newConnection.Name, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException($"A connection with the name '{newConnection.Name}' already exists");
+            }
+
             Connections[index] = newConnection;
             SaveConnections();
         }

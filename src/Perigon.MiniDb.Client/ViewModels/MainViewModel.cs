@@ -25,6 +25,7 @@ public class MainViewModel : INotifyPropertyChanged
     private MicroDbContext? _currentContext;
     private bool _isConnected;
     private string _statusMessage = "Ready";
+    private bool _isSaving = false;
 
     public ObservableCollection<DatabaseConnection> Connections => _connectionService.Connections;
     public ObservableCollection<string> TableNames { get; } = new();
@@ -36,6 +37,11 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (_selectedConnection != value)
             {
+                // Disconnect from current database when selection changes
+                if (IsConnected)
+                {
+                    Disconnect();
+                }
                 _selectedConnection = value;
                 OnPropertyChanged();
             }
@@ -113,7 +119,7 @@ public class MainViewModel : INotifyPropertyChanged
         ConnectCommand = new RelayCommand(_ => Connect(), _ => SelectedConnection != null && !IsConnected);
         DisconnectCommand = new RelayCommand(_ => Disconnect(), _ => IsConnected);
         RefreshTableCommand = new RelayCommand(_ => LoadTableData(), _ => IsConnected && !string.IsNullOrEmpty(SelectedTableName));
-        SaveChangesCommand = new RelayCommand(async _ => await SaveChangesAsync(), _ => IsConnected);
+        SaveChangesCommand = new RelayCommand(async _ => await SaveChangesAsync(), _ => IsConnected && !_isSaving);
     }
 
     private void AddConnection()
@@ -221,6 +227,26 @@ public class MainViewModel : INotifyPropertyChanged
     {
         try
         {
+            // Check for unsaved changes
+            if (TableData != null && TableData.GetChanges() != null)
+            {
+                var result = MessageBox.Show(
+                    "You have unsaved changes. Do you want to save them before disconnecting?",
+                    "Unsaved Changes",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Cancel)
+                {
+                    return; // User cancelled disconnect
+                }
+                else if (result == MessageBoxResult.Yes)
+                {
+                    // Save changes before disconnecting
+                    SaveChangesAsync().Wait();
+                }
+            }
+
             _currentContext?.Dispose();
             _currentContext = null;
             TableNames.Clear();
@@ -336,6 +362,10 @@ public class MainViewModel : INotifyPropertyChanged
         if (_currentContext == null || TableData == null || string.IsNullOrEmpty(SelectedTableName))
             return;
 
+        if (_isSaving)
+            return;
+
+        _isSaving = true;
         try
         {
             // Get the DbSet property
@@ -356,11 +386,22 @@ public class MainViewModel : INotifyPropertyChanged
                 .Where(p => !p.GetCustomAttributes<System.ComponentModel.DataAnnotations.Schema.NotMappedAttribute>().Any())
                 .ToList();
 
+            // Check if entity type has Id property
+            var idProperty = entityType.GetProperty("Id");
+            if (idProperty == null)
+            {
+                MessageBox.Show("Entity type does not have an 'Id' property.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             // Update entities based on modified rows
             foreach (DataRow row in TableData.Rows)
             {
                 if (row.RowState == DataRowState.Modified)
                 {
+                    if (!TableData.Columns.Contains("Id"))
+                        continue;
+
                     var idValue = row["Id"];
                     var entity = entities.FirstOrDefault(e =>
                     {
@@ -376,13 +417,44 @@ public class MainViewModel : INotifyPropertyChanged
                             if (prop.Name != "Id" && TableData.Columns.Contains(prop.Name))
                             {
                                 var value = row[prop.Name];
-                                if (value != DBNull.Value)
+                                
+                                // Determine the effective target type (handle nullable value types)
+                                var targetType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
+
+                                try
                                 {
-                                    prop.SetValue(entity, value);
+                                    if (value == DBNull.Value)
+                                    {
+                                        // Only assign null to reference types or nullable value types
+                                        if (!targetType.IsValueType || Nullable.GetUnderlyingType(prop.PropertyType) != null)
+                                        {
+                                            prop.SetValue(entity, null);
+                                        }
+                                        // For non-nullable value types, skip assignment to avoid runtime exceptions
+                                    }
+                                    else
+                                    {
+                                        object? convertedValue = value;
+
+                                        // Handle enums explicitly
+                                        if (targetType.IsEnum)
+                                        {
+                                            // Try to parse from string or underlying value
+                                            convertedValue = Enum.Parse(targetType, value.ToString()!, ignoreCase: true);
+                                        }
+                                        else if (!targetType.IsAssignableFrom(value.GetType()))
+                                        {
+                                            // Try to convert primitive/convertible types
+                                            convertedValue = Convert.ChangeType(value, targetType);
+                                        }
+
+                                        prop.SetValue(entity, convertedValue);
+                                    }
                                 }
-                                else
+                                catch (Exception convEx)
                                 {
-                                    prop.SetValue(entity, null);
+                                    // Log or skip individual property conversion failures
+                                    System.Diagnostics.Debug.WriteLine($"Failed to convert property {prop.Name}: {convEx.Message}");
                                 }
                             }
                         }
@@ -398,10 +470,23 @@ public class MainViewModel : INotifyPropertyChanged
             TableData.AcceptChanges();
             StatusMessage = $"Changes saved successfully to '{SelectedTableName}'";
         }
+        catch (IOException)
+        {
+            StatusMessage = "Database file is locked";
+            MessageBox.Show(
+                "The database file is locked by another process. Please close the other application and try again.",
+                "Database Locked",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
         catch (Exception ex)
         {
             StatusMessage = $"Error saving changes: {ex.Message}";
             MessageBox.Show($"Failed to save changes: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _isSaving = false;
         }
     }
 

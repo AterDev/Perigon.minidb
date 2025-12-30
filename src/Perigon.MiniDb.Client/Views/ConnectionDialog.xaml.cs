@@ -54,10 +54,44 @@ public partial class ConnectionDialog : Window
             return;
         }
 
+        var path = PathTextBox.Text.Trim();
+        
+        // Validate path format
+        try
+        {
+            // Check if path is rooted (not relative)
+            if (!Path.IsPathRooted(path))
+            {
+                MessageBox.Show("Please enter an absolute file path.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Validate path doesn't contain invalid characters
+            var invalidChars = Path.GetInvalidPathChars();
+            if (path.Any(c => invalidChars.Contains(c)))
+            {
+                MessageBox.Show("The path contains invalid characters.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Get directory and check if it's valid
+            var directory = Path.GetDirectoryName(path);
+            if (string.IsNullOrEmpty(directory))
+            {
+                MessageBox.Show("Please enter a valid file path.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Invalid path: {ex.Message}", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
         Connection = new DatabaseConnection
         {
             Name = NameTextBox.Text.Trim(),
-            Path = PathTextBox.Text.Trim()
+            Path = path
         };
 
         DialogResult = true;
