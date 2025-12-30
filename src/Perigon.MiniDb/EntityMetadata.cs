@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
 
@@ -19,34 +20,35 @@ public class FieldMetadata
 public class EntityMetadata
 {
     public Type EntityType { get; set; } = null!;
-    public List<FieldMetadata> Fields { get; set; } = new();
+    public FrozenSet<FieldMetadata> Fields { get; set; } = FrozenSet<FieldMetadata>.Empty;
     public int RecordSize { get; set; }
 
     public static EntityMetadata Create(Type entityType)
     {
         var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite)
-            .ToList();
+            .ToArray();
         
-        var fields = new List<FieldMetadata>();
+        var fields = new FieldMetadata[properties.Length];
         int offset = 1; // Skip IsDeleted byte
 
-        foreach (var prop in properties)
+        for (int i = 0; i < properties.Length; i++)
         {
+            var prop = properties[i];
             int size = FieldSizeCalculator.GetFixedSize(prop);
-            fields.Add(new FieldMetadata
+            fields[i] = new FieldMetadata
             {
                 Property = prop,
                 Offset = offset,
                 Size = size
-            });
+            };
             offset += size;
         }
 
         return new EntityMetadata
         {
             EntityType = entityType,
-            Fields = fields,
+            Fields = fields.ToFrozenSet(),
             RecordSize = offset
         };
     }
@@ -57,22 +59,21 @@ public class EntityMetadata
 /// </summary>
 public static class FieldSizeCalculator
 {
+    private static readonly FrozenDictionary<Type, int> _typeSizes = new Dictionary<Type, int>
+    {
+        [typeof(int)] = 4,
+        [typeof(bool)] = 1,
+        [typeof(decimal)] = 16,
+        [typeof(DateTime)] = 8
+    }.ToFrozenDictionary();
+
     public static int GetFixedSize(PropertyInfo property)
     {
         var type = property.PropertyType;
         var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
         bool isNullable = Nullable.GetUnderlyingType(type) != null;
 
-        int baseSize = 0;
-        if (underlyingType == typeof(int))
-            baseSize = 4;
-        else if (underlyingType == typeof(bool))
-            baseSize = 1;
-        else if (underlyingType == typeof(decimal))
-            baseSize = 16;
-        else if (underlyingType == typeof(DateTime))
-            baseSize = 8;
-        else if (underlyingType == typeof(string))
+        if (underlyingType == typeof(string))
         {
             // Require [MaxLength] attribute to determine fixed size for string fields
             var maxLengthAttr = property.GetCustomAttribute<MaxLengthAttribute>();
@@ -82,8 +83,11 @@ public static class FieldSizeCalculator
 
             return maxLengthAttr.Length;
         }
-        else
+
+        if (!_typeSizes.TryGetValue(underlyingType, out int baseSize))
+        {
             throw new NotSupportedException($"Type {type.Name} is not supported");
+        }
 
         // Nullable types need extra 1 byte for null marker
         return isNullable ? baseSize + 1 : baseSize;

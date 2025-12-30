@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Runtime.InteropServices;
 
 namespace Perigon.MiniDb;
 
@@ -27,14 +28,18 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
         {
             // Assign next Id
             var idProperty = typeof(TEntity).GetProperty("Id");
-            if (idProperty != null && idProperty.PropertyType == typeof(int))
+            if (idProperty is { PropertyType: var propType } && propType == typeof(int))
             {
                 var currentId = (int)idProperty.GetValue(entity)!;
                 if (currentId == 0)
                 {
-                    var maxId = _entities.Count > 0 
-                        ? _entities.Max(e => (int)idProperty.GetValue(e)!) 
-                        : 0;
+                    int maxId = 0;
+                    var span = CollectionsMarshal.AsSpan(_entities);
+                    foreach (var e in span)
+                    {
+                        var id = (int)idProperty.GetValue(e)!;
+                        if (id > maxId) maxId = id;
+                    }
                     idProperty.SetValue(entity, maxId + 1);
                 }
             }
@@ -72,8 +77,11 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, new()
         _sharedCache.EnterReadLock();
         try
         {
-            // Create a snapshot to avoid holding the lock during iteration
-            return _entities.ToList().GetEnumerator();
+            // Use CollectionsMarshal to create efficient snapshot
+            var span = CollectionsMarshal.AsSpan(_entities);
+            var snapshot = new TEntity[span.Length];
+            span.CopyTo(snapshot);
+            return ((IEnumerable<TEntity>)snapshot).GetEnumerator();
         }
         finally
         {

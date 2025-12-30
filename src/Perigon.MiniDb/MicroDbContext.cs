@@ -126,6 +126,57 @@ public abstract class MicroDbContext : IDisposable
         }
     }
 
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        _sharedCache.EnterWriteLock();
+        try
+        {
+            foreach (var kvp in _dbSets)
+            {
+                var tableName = kvp.Key;
+                var entityType = _tableTypes[tableName];
+
+                // Get added, modified, deleted entities for this table
+                var added = _changeTracker.Added
+                    .Where(e => e.GetType() == entityType)
+                    .ToList();
+                var modified = _changeTracker.Modified
+                    .Where(e => e.GetType() == entityType)
+                    .ToList();
+                var deleted = _changeTracker.Deleted
+                    .Where(e => e.GetType() == entityType)
+                    .ToList();
+
+                if (added.Count > 0 || modified.Count > 0 || deleted.Count > 0)
+                {
+                    // Convert List<object> to List<TEntity> using reflection
+                    var listType = typeof(List<>).MakeGenericType(entityType);
+                    var addedList = Activator.CreateInstance(listType)!;
+                    var modifiedList = Activator.CreateInstance(listType)!;
+                    var deletedList = Activator.CreateInstance(listType)!;
+
+                    var addMethod = listType.GetMethod("Add")!;
+                    foreach (var item in added)
+                        addMethod.Invoke(addedList, [item]);
+                    foreach (var item in modified)
+                        addMethod.Invoke(modifiedList, [item]);
+                    foreach (var item in deleted)
+                        addMethod.Invoke(deletedList, [item]);
+
+                    var saveMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.SaveChangesAsync))!
+                        .MakeGenericMethod(entityType);
+                    var task = (Task)saveMethod.Invoke(_storageManager, [tableName, addedList, modifiedList, deletedList, cancellationToken])!;
+                    await task.ConfigureAwait(false);
+                }
+            }
+        }
+        finally
+        {
+            _changeTracker.Clear();
+            _sharedCache.ExitWriteLock();
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed)

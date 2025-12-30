@@ -5,10 +5,10 @@ namespace Perigon.MiniDb;
 /// </summary>
 public class ChangeTracker
 {
-    private readonly List<object> _added = new();
-    private readonly List<object> _modified = new();
-    private readonly List<object> _deleted = new();
-    private readonly object _syncRoot = new();
+    private readonly HashSet<object> _added = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<object> _modified = new(ReferenceEqualityComparer.Instance);
+    private readonly HashSet<object> _deleted = new(ReferenceEqualityComparer.Instance);
+    private readonly Lock _syncRoot = new();
 
     public IReadOnlyList<object> Added
     {
@@ -16,7 +16,7 @@ public class ChangeTracker
         {
             lock (_syncRoot)
             {
-                return _added.ToArray();
+                return [.. _added];
             }
         }
     }
@@ -27,7 +27,7 @@ public class ChangeTracker
         {
             lock (_syncRoot)
             {
-                return _modified.ToArray();
+                return [.. _modified];
             }
         }
     }
@@ -38,7 +38,7 @@ public class ChangeTracker
         {
             lock (_syncRoot)
             {
-                return _deleted.ToArray();
+                return [.. _deleted];
             }
         }
     }
@@ -47,10 +47,7 @@ public class ChangeTracker
     {
         lock (_syncRoot)
         {
-            if (!_added.Contains(entity))
-            {
-                _added.Add(entity);
-            }
+            _added.Add(entity);
         }
     }
 
@@ -58,7 +55,7 @@ public class ChangeTracker
     {
         lock (_syncRoot)
         {
-            if (!_modified.Contains(entity) && !_added.Contains(entity))
+            if (!_added.Contains(entity))
             {
                 _modified.Add(entity);
             }
@@ -69,17 +66,14 @@ public class ChangeTracker
     {
         lock (_syncRoot)
         {
-            if (_added.Contains(entity))
+            if (_added.Remove(entity))
             {
-                _added.Remove(entity);
+                // Entity was added in this session, just remove it
             }
             else
             {
                 _modified.Remove(entity);
-                if (!_deleted.Contains(entity))
-                {
-                    _deleted.Add(entity);
-                }
+                _deleted.Add(entity);
             }
         }
     }

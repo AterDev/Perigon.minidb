@@ -7,7 +7,7 @@ namespace Perigon.MiniDb;
 internal static class SharedDataCache
 {
     private static readonly Dictionary<string, FileDataCache> _caches = new();
-    private static readonly ReaderWriterLockSlim _cacheLock = new(LockRecursionPolicy.NoRecursion);
+    private static readonly Lock _cacheLock = new();
     private static int _isDisposed;
 
     static SharedDataCache()
@@ -25,8 +25,7 @@ internal static class SharedDataCache
             return;
         }
 
-        _cacheLock.EnterWriteLock();
-        try
+        lock (_cacheLock)
         {
             foreach (var cache in _caches.Values)
             {
@@ -34,11 +33,6 @@ internal static class SharedDataCache
             }
 
             _caches.Clear();
-        }
-        finally
-        {
-            _cacheLock.ExitWriteLock();
-            _cacheLock.Dispose();
         }
     }
 
@@ -50,8 +44,7 @@ internal static class SharedDataCache
         // Normalize the path to ensure consistency
         var normalizedPath = Path.GetFullPath(filePath);
 
-        _cacheLock.EnterUpgradeableReadLock();
-        try
+        lock (_cacheLock)
         {
             if (_caches.TryGetValue(normalizedPath, out var cache))
             {
@@ -59,29 +52,10 @@ internal static class SharedDataCache
                 return cache;
             }
 
-            _cacheLock.EnterWriteLock();
-            try
-            {
-                // Double-check in case another thread created it
-                if (_caches.TryGetValue(normalizedPath, out cache))
-                {
-                    cache.IncrementRefCount();
-                    return cache;
-                }
-
-                cache = new FileDataCache(normalizedPath);
-                _caches[normalizedPath] = cache;
-                cache.IncrementRefCount();
-                return cache;
-            }
-            finally
-            {
-                _cacheLock.ExitWriteLock();
-            }
-        }
-        finally
-        {
-            _cacheLock.ExitUpgradeableReadLock();
+            cache = new FileDataCache(normalizedPath);
+            _caches[normalizedPath] = cache;
+            cache.IncrementRefCount();
+            return cache;
         }
     }
 
@@ -93,8 +67,7 @@ internal static class SharedDataCache
         var normalizedPath = Path.GetFullPath(filePath);
 
         FileDataCache? cacheToDispose = null;
-        _cacheLock.EnterWriteLock();
-        try
+        lock (_cacheLock)
         {
             if (_caches.TryGetValue(normalizedPath, out var cache) &&
                 cache.DecrementRefCount() == 0)
@@ -102,10 +75,6 @@ internal static class SharedDataCache
                 _caches.Remove(normalizedPath);
                 cacheToDispose = cache;
             }
-        }
-        finally
-        {
-            _cacheLock.ExitWriteLock();
         }
 
         // Dispose outside the lock to avoid holding it during disposal
@@ -120,7 +89,7 @@ internal class FileDataCache(string filePath) : IDisposable
 {
     private readonly string _filePath = filePath;
     private readonly Dictionary<string, object> _tableData = new();
-    private readonly ReaderWriterLockSlim _dataLock = new(LockRecursionPolicy.NoRecursion);
+    private readonly Lock _dataLock = new();
     private int _refCount = 0;
     private int _disposed = 0;
 
@@ -139,44 +108,25 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public List<T> GetOrLoadTableData<T>(string tableName, Func<List<T>> loader) where T : new()
     {
-        _dataLock.EnterUpgradeableReadLock();
-        try
+        lock (_dataLock)
         {
             if (_tableData.TryGetValue(tableName, out var cachedData))
             {
                 return (List<T>)cachedData;
             }
 
-            _dataLock.EnterWriteLock();
-            try
-            {
-                // Double-check in case another thread loaded it
-                if (_tableData.TryGetValue(tableName, out cachedData))
-                {
-                    return (List<T>)cachedData;
-                }
-
-                var data = loader();
-                _tableData[tableName] = data;
-                return data;
-            }
-            finally
-            {
-                _dataLock.ExitWriteLock();
-            }
-        }
-        finally
-        {
-            _dataLock.ExitUpgradeableReadLock();
+            var data = loader();
+            _tableData[tableName] = data;
+            return data;
         }
     }
 
     /// <summary>
-    /// Acquires a read lock for thread-safe read operations
+    /// Acquires a lock for thread-safe read operations
     /// </summary>
     public void EnterReadLock()
     {
-        _dataLock.EnterReadLock();
+        Monitor.Enter(_dataLock);
     }
 
     /// <summary>
@@ -184,15 +134,15 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void ExitReadLock()
     {
-        _dataLock.ExitReadLock();
+        Monitor.Exit(_dataLock);
     }
 
     /// <summary>
-    /// Acquires a write lock for thread-safe write operations
+    /// Acquires a lock for thread-safe write operations
     /// </summary>
     public void EnterWriteLock()
     {
-        _dataLock.EnterWriteLock();
+        Monitor.Enter(_dataLock);
     }
 
     /// <summary>
@@ -200,7 +150,7 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void ExitWriteLock()
     {
-        _dataLock.ExitWriteLock();
+        Monitor.Exit(_dataLock);
     }
 
     public void Dispose()
@@ -208,7 +158,5 @@ internal class FileDataCache(string filePath) : IDisposable
         // Use CompareExchange for thread-safe disposal check
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
-
-        _dataLock.Dispose();
     }
 }
