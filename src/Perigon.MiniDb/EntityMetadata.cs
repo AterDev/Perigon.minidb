@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Reflection;
 
 namespace Perigon.MiniDb;
@@ -27,11 +28,16 @@ public class EntityMetadata
     {
         var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite)
+            .Where(p => p.Name != "Id")  // Skip Id property (handled separately via IMicroEntity)
+            .Where(p => p.GetCustomAttribute<NotMappedAttribute>() == null)  // Skip [NotMapped] properties
             .OrderBy(p => p.Name)  // Sort by name for consistent ordering
             .ToArray();
         
         var fields = new FieldMetadata[properties.Length];
         int offset = 1; // Skip IsDeleted byte
+        
+        // Add Id field first (4 bytes for int Id from IMicroEntity)
+        offset += 4;
 
         for (int i = 0; i < properties.Length; i++)
         {

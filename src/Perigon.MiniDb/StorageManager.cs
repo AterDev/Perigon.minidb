@@ -150,7 +150,7 @@ internal class StorageManager
         }
     }
 
-    public async Task<List<T>> LoadTableAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : new()
+    public async Task<List<T>> LoadTableAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
     {
         var result = new List<T>();
         if (!_tables.TryGetValue(tableName, out var tableMetadata))
@@ -195,7 +195,7 @@ internal class StorageManager
     }
 
     public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
-        CancellationToken cancellationToken = default) where T : notnull
+        CancellationToken cancellationToken = default) where T : class, IMicroEntity
     {
         // Queue the write operation to ensure single-threaded file access
         await _writeQueue.QueueWriteAsync(async () =>
@@ -205,7 +205,7 @@ internal class StorageManager
     }
 
     private async Task SaveChangesInternalAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
-        CancellationToken cancellationToken = default) where T : notnull
+        CancellationToken cancellationToken = default) where T : class, IMicroEntity
     {
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
@@ -225,7 +225,7 @@ internal class StorageManager
         // Handle modified records
         foreach (var entity in modified)
         {
-            var id = GetEntityId(entity);
+            var id = entity.Id;
             var buffer = SerializeRecord(entity, entityMetadata);
             long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
@@ -235,7 +235,7 @@ internal class StorageManager
         // Handle deleted records (soft delete)
         foreach (var entity in deleted)
         {
-            var id = GetEntityId(entity);
+            var id = entity.Id;
             long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             await file.WriteAsync(new byte[] { 1 }, cancellationToken); // Set IsDeleted flag
@@ -282,7 +282,7 @@ internal class StorageManager
         WriteTableMetadata(writer, tableMetadata);
     }
 
-    private byte[] SerializeRecord<T>(T entity, EntityMetadata metadata)
+    private byte[] SerializeRecord<T>(T entity, EntityMetadata metadata) where T : IMicroEntity
     {
         var buffer = new byte[metadata.RecordSize];
         var span = buffer.AsSpan();
@@ -290,6 +290,10 @@ internal class StorageManager
         // IsDeleted flag (always 0 for new/modified records)
         span[0] = 0;
         int offset = 1;
+        
+        // Write Id (4 bytes)
+        BitConverter.TryWriteBytes(span[offset..], entity.Id);
+        offset += 4;
 
         foreach (var field in metadata.Fields)
         {
@@ -301,10 +305,14 @@ internal class StorageManager
         return buffer;
     }
 
-    private T DeserializeRecord<T>(ReadOnlySpan<byte> buffer, EntityMetadata metadata) where T : new()
+    private T DeserializeRecord<T>(ReadOnlySpan<byte> buffer, EntityMetadata metadata) where T : class, IMicroEntity, new()
     {
         var entity = new T();
         int offset = 1; // Skip IsDeleted
+        
+        // Read Id (4 bytes)
+        entity.Id = BitConverter.ToInt32(buffer[offset..]);
+        offset += 4;
 
         foreach (var field in metadata.Fields)
         {
@@ -456,21 +464,6 @@ internal class StorageManager
         }
 
         return null;
-    }
-
-    private int GetEntityId<T>(T entity) where T : notnull
-    {
-        ArgumentNullException.ThrowIfNull(entity);
-
-        var idProperty = typeof(T).GetProperty("Id");
-        if (idProperty is null || idProperty.PropertyType != typeof(int))
-            throw new InvalidOperationException($"Entity type '{typeof(T).Name}' must have an 'Id' property of type int");
-
-        var idValue = idProperty.GetValue(entity);
-        if (idValue is null)
-            throw new InvalidOperationException($"The 'Id' property of entity type '{typeof(T).Name}' cannot be null");
-
-        return (int)idValue;
     }
 
     private EntityMetadata GetOrCreateEntityMetadata(Type type)

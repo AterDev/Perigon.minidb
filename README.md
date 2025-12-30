@@ -56,6 +56,7 @@ dotnet add package Perigon.MiniDb
 
 ```csharp
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Perigon.MiniDb;
 
 public class User : IMicroEntity
@@ -76,6 +77,14 @@ public class User : IMicroEntity
     // 可空类型支持
     public int? CategoryId { get; set; }
     public DateTime? PublishedAt { get; set; }
+    
+    // 计算属性 - 不会保存到数据库
+    [NotMapped]
+    public bool IsAdult => Age >= 18;
+    
+    // 临时属性 - 不会持久化
+    [NotMapped]
+    public bool IsProcessing { get; set; }
 }
 ```
 
@@ -83,7 +92,8 @@ public class User : IMicroEntity
 
 1. **必须实现 IMicroEntity 接口**：每个实体必须实现 `IMicroEntity` 接口，该接口定义了 `int Id { get; set; }` 属性
 2. **字符串必须标注长度**：所有 `string` 类型属性必须使用 `[MaxLength]` 特性指定最大字节数（UTF-8编码）
-3. **支持的数据类型**：仅支持特定类型（见下表）
+3. **支持 [NotMapped] 特性**：使用 `[NotMapped]` 特性可以排除属性不保存到数据库（计算属性、临时属性等）
+4. **支持的数据类型**：仅支持特定类型（见下表）
 
 ### 2. 创建 DbContext
 
@@ -179,47 +189,171 @@ await MyDbContext.ReleaseSharedCacheAsync("app.mdb");
 
 4. **未标注默认值**：如果忘记标注，默认使用1024字节
 
-## 🔧 关键行为说明
+### 💡 [NotMapped] 特性使用
 
-### 异步初始化模式
+使用 `[NotMapped]` 特性可以排除属性不保存到数据库：
 
 ```csharp
-// ❌ 错误：忘记调用 InitializeAsync
-var db = new MyDbContext("app.mdb");
-db.Users.Add(user);  // NullReferenceException - DbSet 未初始化
+using System.ComponentModel.DataAnnotations.Schema;
 
-// ✅ 正确：必须先调用 InitializeAsync
+public class User : IMicroEntity
+{
+    public int Id { get; set; }
+    
+    [MaxLength(50)]
+    public string Name { get; set; } = string.Empty;
+    
+    public int Age { get; set; }
+    
+    // 计算属性 - 不会保存到数据库
+    [NotMapped]
+    public bool IsAdult => Age >= 18;
+    
+    // 临时状态 - 不会持久化
+    [NotMapped]
+    public bool IsSelected { get; set; }
+    
+    // 格式化显示 - 不会存储
+    [NotMapped]
+    public string DisplayName => $"{Name} (ID: {Id})";
+}
+```
+
+**使用场景**：
+- ✅ 计算属性（只读属性，基于其他属性计算）
+- ✅ 临时状态标记（UI 选中状态、处理标记等）
+- ✅ 格式化显示属性
+- ✅ 业务逻辑辅助属性
+
+### 🔄 通过 JSON 支持复杂类型
+
+对于不支持的复杂类型（嵌套对象、集合等），可以通过 JSON 序列化存储：
+
+```csharp
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
+
+// 复杂类型定义
+public class Address
+{
+    public string Street { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public string ZipCode { get; set; } = string.Empty;
+}
+
+public class User : IMicroEntity
+{
+    public int Id { get; set; }
+    
+    [MaxLength(50)]
+    public string Name { get; set; } = string.Empty;
+    
+    // 复杂类型属性 - 标记为 [NotMapped]
+    [NotMapped]
+    public Address? Address
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(AddressJsonString))
+                return null;
+            return JsonSerializer.Deserialize<Address>(AddressJsonString);
+        }
+        set
+        {
+            AddressJsonString = value == null 
+                ? string.Empty 
+                : JsonSerializer.Serialize(value);
+        }
+    }
+    
+    // 实际存储的 JSON 字符串
+    [MaxLength(500)]
+    public string AddressJsonString { get; set; } = string.Empty;
+}
+
+// 使用示例
+var user = new User
+{
+    Name = "Alice",
+    Address = new Address
+    {
+        Street = "123 Main St",
+        City = "New York",
+        Country = "USA",
+        ZipCode = "10001"
+    }
+};
+
+db.Users.Add(user);
+await db.SaveChangesAsync();
+
+// 加载后自动反序列化
+var loaded = db.Users.First();
+Console.WriteLine(loaded.Address.City);  // "New York"
+```
+
+**适用场景**：
+- ✅ 嵌套对象（地址、联系人信息等）
+- ✅ 配置数据（键值对、设置项等）
+- ✅ 元数据（标签、属性列表等）
+- ✅ 动态结构数据
+
+**注意事项**：
+- ⚠️ 不能直接查询 JSON 中的嵌套属性
+- ⚠️ 需要加载到内存后再过滤
+- ⚠️ 建议控制 JSON 大小（< 10KB）
+
+## 🔧 关键行为说明
+
+### 自动初始化
+
+```csharp
+// ✅ 创建即可用：构造函数自动加载数据
 var db = new MyDbContext("app.mdb");
-await db.InitializeAsync();  // 加载所有表数据到内存
 await using (db)
 {
-    db.Users.Add(user);  // 现在可以正常使用
+    // 直接使用，无需额外初始化
+    db.Users.Add(new User 
+    { 
+        Name = "Alice",
+        Email = "alice@example.com",
+        Age = 25,
+        Balance = 1000m,
+        CreatedAt = DateTime.UtcNow,
+        IsActive = true
+    });
     await db.SaveChangesAsync();
 }
 ```
 
-**为什么需要两步初始化？**
+**自动初始化的工作原理**：
 
-- **构造函数**：创建上下文、打开/创建数据库文件、读取元数据
-- **InitializeAsync()**：加载所有表数据到内存、初始化 DbSet 属性
+- **构造函数**：创建上下文、打开/创建数据库文件、加载所有表数据到内存
+- **即用**：DbSet 属性在构造函数中已初始化，可以直接使用
 
-这样设计的好处：
-1. ✅ 构造函数保持同步，避免异步构造的复杂性
-2. ✅ 给用户明确的控制点（何时加载数据）
-3. ✅ 支持取消令牌（`InitializeAsync(cancellationToken)`）
+**注意事项**：
+1. ✅ 构造函数会同步加载数据（对于小数据库 ≤50MB 很快）
+2. ✅ 多个上下文实例共享内存数据（高效）
+3. ✅ 类似 EF Core 的使用体验，无需额外步骤
 
 ### 共享内存架构
 
 ```csharp
 // 同一文件的多个上下文共享内存
 var db1 = new MyDbContext("app.mdb");
-await db1.InitializeAsync();
-
 var db2 = new MyDbContext("app.mdb");
-await db2.InitializeAsync();
 
 // db1 和 db2 看到的是同一份内存数据
-db1.Users.Add(new User { Name = "Alice", Email = "alice@example.com", Age = 25, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true });
+db1.Users.Add(new User 
+{ 
+    Name = "Alice",
+    Email = "alice@example.com",
+    Age = 25,
+    Balance = 1000m,
+    CreatedAt = DateTime.UtcNow,
+    IsActive = true
+});
 await db1.SaveChangesAsync();
 
 // db2 立即看到变化，无需刷新
@@ -231,8 +365,6 @@ Console.WriteLine(db2.Users.Count);  // 输出: 1
 ```csharp
 // DbContext 销毁时不会释放共享内存
 var db = new MyDbContext("app.mdb");
-await db.InitializeAsync();
-
 await using (db)
 {
     // 使用数据库
@@ -259,16 +391,33 @@ var users = db.Users.ToList();  // 自动过滤已删除记录
 
 ```csharp
 var db = new MyDbContext("app.mdb");
-await db.InitializeAsync();
 
-var user = new User { Name = "Alice", Email = "alice@example.com", Age = 25, Balance = 1000m, CreatedAt = DateTime.UtcNow, IsActive = true };  // Id = 0（未设置）
+var user = new User 
+{ 
+    Name = "Alice",
+    Email = "alice@example.com",
+    Age = 25,
+    Balance = 1000m,
+    CreatedAt = DateTime.UtcNow,
+    IsActive = true
+};  // Id = 0（未设置）
+
 db.Users.Add(user);
 await db.SaveChangesAsync();
 
 Console.WriteLine(user.Id);  // 自动分配: 1
 
 // 手动指定ID也可以
-var user2 = new User { Id = 100, Name = "Bob", Email = "bob@example.com", Age = 30, Balance = 2000m, CreatedAt = DateTime.UtcNow, IsActive = true };
+var user2 = new User 
+{ 
+    Id = 100,
+    Name = "Bob",
+    Email = "bob@example.com",
+    Age = 30,
+    Balance = 2000m,
+    CreatedAt = DateTime.UtcNow,
+    IsActive = true
+};
 db.Users.Add(user2);
 await db.SaveChangesAsync();  // 使用指定的ID
 ```
