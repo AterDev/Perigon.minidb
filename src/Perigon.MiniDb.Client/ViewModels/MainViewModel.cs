@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Input;
+using Perigon.MiniDb;
 using Perigon.MiniDb.Client.Helpers;
 using Perigon.MiniDb.Client.Models;
 using Perigon.MiniDb.Client.Services;
@@ -112,7 +113,7 @@ public class MainViewModel : INotifyPropertyChanged
         ConnectCommand = new RelayCommand(_ => Connect(), _ => SelectedConnection != null && !IsConnected);
         DisconnectCommand = new RelayCommand(_ => Disconnect(), _ => IsConnected);
         RefreshTableCommand = new RelayCommand(_ => LoadTableData(), _ => IsConnected && !string.IsNullOrEmpty(SelectedTableName));
-        SaveChangesCommand = new RelayCommand(_ => SaveChanges(), _ => IsConnected);
+        SaveChangesCommand = new RelayCommand(async _ => await SaveChangesAsync(), _ => IsConnected);
     }
 
     private void AddConnection()
@@ -330,7 +331,7 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async void SaveChanges()
+    private async Task SaveChangesAsync()
     {
         if (_currentContext == null || TableData == null || string.IsNullOrEmpty(SelectedTableName))
             return;
