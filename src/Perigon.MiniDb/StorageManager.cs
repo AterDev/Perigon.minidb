@@ -150,49 +150,6 @@ internal class StorageManager
         }
     }
 
-    public List<T> LoadTable<T>(string tableName) where T : new()
-    {
-        var result = new List<T>();
-        if (!_tables.TryGetValue(tableName, out var tableMetadata))
-            return result;
-
-        if (tableMetadata.RecordCount == 0)
-            return result;
-
-        var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
-        byte[]? rentedBuffer = null;
-
-        try
-        {
-            using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read);
-            file.Seek(tableMetadata.DataStartOffset, SeekOrigin.Begin);
-
-            rentedBuffer = ArrayPool<byte>.Shared.Rent(tableMetadata.RecordSize);
-            var buffer = rentedBuffer.AsSpan(0, tableMetadata.RecordSize);
-
-            for (int i = 0; i < tableMetadata.RecordCount; i++)
-            {
-                file.ReadExactly(buffer);
-
-                // Check IsDeleted flag
-                if (buffer[0] == 0)
-                {
-                    var entity = DeserializeRecord<T>(buffer, entityMetadata);
-                    result.Add(entity);
-                }
-            }
-
-            return result;
-        }
-        finally
-        {
-            if (rentedBuffer is not null)
-            {
-                ArrayPool<byte>.Shared.Return(rentedBuffer);
-            }
-        }
-    }
-
     public async Task<List<T>> LoadTableAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : new()
     {
         var result = new List<T>();
@@ -237,62 +194,6 @@ internal class StorageManager
         }
     }
 
-    public void SaveChanges<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
-    {
-        // Queue the write operation to ensure single-threaded file access
-        // Use Task.Run to avoid potential deadlocks in synchronization contexts
-        Task.Run(async () =>
-        {
-            await _writeQueue.QueueWriteAsync(() =>
-            {
-                SaveChangesInternal(tableName, added, modified, deleted);
-            });
-        }).GetAwaiter().GetResult();
-    }
-
-    private void SaveChangesInternal<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
-    {
-        var tableMetadata = _tables[tableName];
-        var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
-
-        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-
-        // Handle added records
-        foreach (var entity in added)
-        {
-            var buffer = SerializeRecord(entity, entityMetadata);
-            file.Seek(tableMetadata.DataStartOffset + (tableMetadata.RecordCount * tableMetadata.RecordSize), SeekOrigin.Begin);
-            file.Write(buffer, 0, buffer.Length);
-            tableMetadata.RecordCount++;
-        }
-
-        // Handle modified records
-        foreach (var entity in modified)
-        {
-            var id = GetEntityId(entity);
-            var buffer = SerializeRecord(entity, entityMetadata);
-            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
-            file.Seek(offset, SeekOrigin.Begin);
-            file.Write(buffer, 0, buffer.Length);
-        }
-
-        // Handle deleted records (soft delete)
-        foreach (var entity in deleted)
-        {
-            var id = GetEntityId(entity);
-            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
-            file.Seek(offset, SeekOrigin.Begin);
-            file.WriteByte(1); // Set IsDeleted flag
-        }
-
-        // Ensure data is written to disk
-        file.Flush(flushToDisk: true);
-
-        // Update table metadata in the same file stream
-        UpdateTableMetadata(tableName, file);
-        file.Flush(flushToDisk: true);
-    }
-
     public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
         CancellationToken cancellationToken = default) where T : notnull
     {
@@ -309,7 +210,7 @@ internal class StorageManager
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
 
-        await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None,
+        await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read,
             bufferSize: 4096, useAsync: true);
 
         // Handle added records
@@ -437,7 +338,7 @@ internal class StorageManager
         if (underlyingType == typeof(string))
         {
             var str = (string)value;
-            
+
             // Truncate string if it's too long for the buffer
             // Use binary search to find the maximum number of characters that fit in the buffer
             int maxChars = str.Length;
@@ -455,7 +356,7 @@ internal class StorageManager
                 }
                 maxChars = low;
             }
-            
+
             int bytesWritten = Encoding.UTF8.GetBytes(str.AsSpan(0, maxChars), dataSpan);
 
             // Ensure we don't split UTF-8 multi-byte characters at the boundary

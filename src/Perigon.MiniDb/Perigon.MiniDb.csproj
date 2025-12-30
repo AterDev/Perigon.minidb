@@ -1,13 +1,36 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <Version>0.0.1</Version>
-    <Authors>NilTor</Authors>
-    <PackageId>Perigon.MiniDb</PackageId>
-    <Description>A lightweight, single-file, in-memory database engine for small data volumes (≤50MB)</Description>
-  </PropertyGroup>
-
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Version>0.0.1</Version>
+        <Authors>NilTor</Authors>
+        <PackageId>Perigon.MiniDb</PackageId>
+        <Description>A lightweight, single-file, in-memory database engine for small datasets.
+Using it like EF core with DbContext.</Description>
+        <Title>Perigon MiniDb for local config file.</Title>
+        <PackageProjectUrl>https://github.com/AterDev/Perigon.minidb</PackageProjectUrl>
+        <PackageIcon>logo.png</PackageIcon>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/AterDev/Perigon.minidb</RepositoryUrl>
+        <PackageTags>linq;ef core;local db;database</PackageTags>
+        <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+    <ItemGroup>
+      <None Include="..\..\LICENSE">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+      </None>
+      <None Include="..\..\README.md">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+      </None>
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="logo.png">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+      </None>
+    </ItemGroup>
 </Project>

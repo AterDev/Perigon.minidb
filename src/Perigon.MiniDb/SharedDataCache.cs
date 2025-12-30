@@ -116,6 +116,29 @@ internal class FileDataCache(string filePath) : IDisposable
     }
 
     /// <summary>
+    /// Gets the data for a table. If not cached, loads it using the provided loader function.
+    /// </summary>
+    public async Task<List<T>> GetOrLoadTableDataAsync<T>(string tableName, Func<Task<List<T>>> loader, CancellationToken cancellationToken = default) where T : new()
+    {
+        await _asyncLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_tableData.TryGetValue(tableName, out var cachedData))
+            {
+                return (List<T>)cachedData;
+            }
+
+            var data = await loader();
+            _tableData[tableName] = data;
+            return data;
+        }
+        finally
+        {
+            _asyncLock.Release();
+        }
+    }
+
+    /// <summary>
     /// Acquires a lock for thread-safe read operations
     /// </summary>
     public void EnterReadLock()

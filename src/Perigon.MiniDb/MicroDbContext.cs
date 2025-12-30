@@ -16,6 +16,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     private readonly Dictionary<string, object> _dbSets = [];
     private readonly Dictionary<string, Type> _tableTypes = [];
     private bool _disposed = false;
+    private bool _initialized = false;
 
     protected MicroDbContext(string filePath)
     {
@@ -26,7 +27,12 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
         InitializeDbSets();
         _storageManager.Initialize(_tableTypes);
-        LoadAllTables();
+
+        // Immediately load all tables synchronously
+        // This ensures DbSet properties are initialized and ready to use
+        // Data is loaded from shared cache (or from file if first time)
+        LoadAllTablesSynchronously();
+        _initialized = true;
     }
 
     private void InitializeDbSets()
@@ -44,7 +50,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         }
     }
 
-    private void LoadAllTables()
+    private async Task LoadAllTablesAsync(CancellationToken cancellationToken = default)
     {
         var dbSetProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.PropertyType.IsGenericType &&
@@ -57,75 +63,29 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
             var tableName = property.Name;
 
             // Use helper method to load table data with proper generic type handling
-            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelper),
+            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelperAsync),
                 BindingFlags.NonPublic | BindingFlags.Instance)!
                 .MakeGenericMethod(entityType);
 
-            var dbSet = helperMethod.Invoke(this, [tableName]);
+            var dbSetTask = (Task)helperMethod.Invoke(this, [tableName, cancellationToken])!;
+            await dbSetTask.ConfigureAwait(false);
+
+            var dbSet = dbSetTask.GetType().GetProperty("Result")!.GetValue(dbSetTask);
 
             property.SetValue(this, dbSet);
             _dbSets[tableName] = dbSet!;
         }
     }
 
-    private DbSet<T> LoadTableHelper<T>(string tableName) where T : class, new()
+    private async Task<DbSet<T>> LoadTableHelperAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, new()
     {
         // Load entities from shared cache (or from storage if not cached)
-        var entities = _sharedCache.GetOrLoadTableData<T>(tableName, () => _storageManager.LoadTable<T>(tableName));
+        var entities = await _sharedCache.GetOrLoadTableDataAsync<T>(tableName,
+            async () => await _storageManager.LoadTableAsync<T>(tableName, cancellationToken),
+            cancellationToken);
 
         // Create and return DbSet instance with shared cache for synchronization
         return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
-    }
-
-    public void SaveChanges()
-    {
-        _sharedCache.EnterWriteLock();
-        try
-        {
-            foreach (var kvp in _dbSets)
-            {
-                var tableName = kvp.Key;
-                var dbSet = kvp.Value;
-                var entityType = _tableTypes[tableName];
-
-                // Get added, modified, deleted entities for this table
-                var added = _changeTracker.Added
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
-                var modified = _changeTracker.Modified
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
-                var deleted = _changeTracker.Deleted
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
-
-                if (added.Count > 0 || modified.Count > 0 || deleted.Count > 0)
-                {
-                    // Convert List<object> to List<TEntity> using reflection
-                    var listType = typeof(List<>).MakeGenericType(entityType);
-                    var addedList = Activator.CreateInstance(listType)!;
-                    var modifiedList = Activator.CreateInstance(listType)!;
-                    var deletedList = Activator.CreateInstance(listType)!;
-
-                    var addMethod = listType.GetMethod("Add")!;
-                    foreach (var item in added)
-                        addMethod.Invoke(addedList, [item]);
-                    foreach (var item in modified)
-                        addMethod.Invoke(modifiedList, [item]);
-                    foreach (var item in deleted)
-                        addMethod.Invoke(deletedList, [item]);
-
-                    var saveMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.SaveChanges))!
-                        .MakeGenericMethod(entityType);
-                    saveMethod.Invoke(_storageManager, [tableName, addedList, modifiedList, deletedList]);
-                }
-            }
-        }
-        finally
-        {
-            _changeTracker.Clear();
-            _sharedCache.ExitWriteLock();
-        }
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -185,11 +145,11 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
             return;
 
         _disposed = true;
-        
+
         // Note: We do NOT release the shared cache here.
         // The cache persists across DbContext instances.
         // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
-        
+
         GC.SuppressFinalize(this);
     }
 
@@ -199,11 +159,11 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
             return;
 
         _disposed = true;
-        
+
         // Note: We do NOT release the shared cache here.
         // The cache persists across DbContext instances.
         // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
-        
+
         await Task.CompletedTask;
         GC.SuppressFinalize(this);
     }
@@ -217,11 +177,11 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     {
         var normalizedPath = Path.GetFullPath(filePath);
         var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
-        
+
         // Flush any pending writes before releasing
         // Use Task.Run to avoid potential deadlocks in synchronization contexts
         Task.Run(async () => await cache.WriteQueue.FlushAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
-        
+
         SharedDataCache.ReleaseCache(normalizedPath);
     }
 
@@ -234,10 +194,18 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     {
         var normalizedPath = Path.GetFullPath(filePath);
         var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
-        
+
         // Flush any pending writes before releasing
         await cache.WriteQueue.FlushAsync();
-        
+
         SharedDataCache.ReleaseCache(normalizedPath);
+    }
+
+    private void LoadAllTablesSynchronously()
+    {
+        // Use GetAwaiter().GetResult() to synchronously wait for async operation
+        // This is acceptable for small databases (≤50MB) as per design goals
+        var task = LoadAllTablesAsync(CancellationToken.None);
+        task.GetAwaiter().GetResult();
     }
 }
