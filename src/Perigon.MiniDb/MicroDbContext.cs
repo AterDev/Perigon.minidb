@@ -5,7 +5,7 @@ namespace Perigon.MiniDb;
 /// <summary>
 /// Main database context with DbSet management and SaveChanges
 /// </summary>
-public abstract class MicroDbContext : IDisposable
+public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 {
     private readonly string _filePath;
     private readonly StorageManager _storageManager;
@@ -128,7 +128,7 @@ public abstract class MicroDbContext : IDisposable
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        _sharedCache.EnterWriteLock();
+        await _sharedCache.EnterWriteLockAsync(cancellationToken);
         try
         {
             foreach (var kvp in _dbSets)
@@ -173,7 +173,7 @@ public abstract class MicroDbContext : IDisposable
         finally
         {
             _changeTracker.Clear();
-            _sharedCache.ExitWriteLock();
+            _sharedCache.ExitWriteLockAsync();
         }
     }
 
@@ -184,5 +184,20 @@ public abstract class MicroDbContext : IDisposable
 
         _disposed = true;
         SharedDataCache.ReleaseCache(_filePath);
+        GC.SuppressFinalize(this);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        
+        // Small delay to ensure any pending async operations complete
+        await Task.Yield();
+        
+        SharedDataCache.ReleaseCache(_filePath);
+        GC.SuppressFinalize(this);
     }
 }

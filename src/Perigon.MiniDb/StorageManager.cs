@@ -26,7 +26,7 @@ public class StorageManager(string filePath)
     private const short VERSION = 1;
 
     private readonly string _filePath = filePath;
-    private readonly Dictionary<string, TableMetadata> _tables = new();
+    private readonly Dictionary<string, TableMetadata> _tables = [];
     private FrozenDictionary<Type, EntityMetadata> _entityMetadataCache = FrozenDictionary<Type, EntityMetadata>.Empty;
 
     public void Initialize(Dictionary<string, Type> tableTypes)
@@ -52,7 +52,7 @@ public class StorageManager(string filePath)
         writer.Write(magicBytes);
         writer.Write(VERSION);
         writer.Write((short)tableTypes.Count);
-        
+
         Span<byte> reserved = stackalloc byte[248];
         reserved.Clear();
         writer.Write(reserved);
@@ -79,7 +79,7 @@ public class StorageManager(string filePath)
 
             WriteTableMetadata(writer, tableMetadata);
         }
-        
+
         // Freeze the metadata cache after initialization
         _entityMetadataCache = metadataBuilder.ToFrozenDictionary();
     }
@@ -88,19 +88,19 @@ public class StorageManager(string filePath)
     {
         Span<byte> nameBuffer = stackalloc byte[64];
         nameBuffer.Clear();
-        
+
         int bytesWritten = Encoding.UTF8.GetBytes(metadata.TableName, nameBuffer);
         if (bytesWritten > 64)
         {
             throw new InvalidOperationException(
                 $"Table name '{metadata.TableName}' exceeds the 64-byte limit in UTF-8 encoding.");
         }
-        
+
         writer.Write(nameBuffer);
         writer.Write(metadata.RecordCount);
         writer.Write(metadata.RecordSize);
         writer.Write(metadata.DataStartOffset);
-        
+
         Span<byte> reserved = stackalloc byte[48];
         reserved.Clear();
         writer.Write(reserved);
@@ -200,7 +200,7 @@ public class StorageManager(string filePath)
 
         try
         {
-            await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 
+            await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
                 bufferSize: 4096, useAsync: true);
             file.Seek(tableMetadata.DataStartOffset, SeekOrigin.Begin);
 
@@ -230,7 +230,7 @@ public class StorageManager(string filePath)
         }
     }
 
-    public void SaveChanges<T>(string tableName, List<T> added, List<T> modified, List<T> deleted)
+    public void SaveChanges<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
     {
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
@@ -241,7 +241,7 @@ public class StorageManager(string filePath)
         foreach (var entity in added)
         {
             var buffer = SerializeRecord(entity, entityMetadata);
-            file.Seek(tableMetadata.DataStartOffset + tableMetadata.RecordCount * tableMetadata.RecordSize, SeekOrigin.Begin);
+            file.Seek(tableMetadata.DataStartOffset + (tableMetadata.RecordCount * tableMetadata.RecordSize), SeekOrigin.Begin);
             file.Write(buffer, 0, buffer.Length);
             tableMetadata.RecordCount++;
         }
@@ -251,7 +251,7 @@ public class StorageManager(string filePath)
         {
             var id = GetEntityId(entity);
             var buffer = SerializeRecord(entity, entityMetadata);
-            long offset = tableMetadata.DataStartOffset + (id - 1) * tableMetadata.RecordSize;
+            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             file.Write(buffer, 0, buffer.Length);
         }
@@ -260,7 +260,7 @@ public class StorageManager(string filePath)
         foreach (var entity in deleted)
         {
             var id = GetEntityId(entity);
-            long offset = tableMetadata.DataStartOffset + (id - 1) * tableMetadata.RecordSize;
+            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             file.WriteByte(1); // Set IsDeleted flag
         }
@@ -269,8 +269,8 @@ public class StorageManager(string filePath)
         UpdateTableMetadata(tableName, file);
     }
 
-    public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted, 
-        CancellationToken cancellationToken = default)
+    public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
+        CancellationToken cancellationToken = default) where T : notnull
     {
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
@@ -282,7 +282,7 @@ public class StorageManager(string filePath)
         foreach (var entity in added)
         {
             var buffer = SerializeRecord(entity, entityMetadata);
-            file.Seek(tableMetadata.DataStartOffset + tableMetadata.RecordCount * tableMetadata.RecordSize, SeekOrigin.Begin);
+            file.Seek(tableMetadata.DataStartOffset + (tableMetadata.RecordCount * tableMetadata.RecordSize), SeekOrigin.Begin);
             await file.WriteAsync(buffer, cancellationToken);
             tableMetadata.RecordCount++;
         }
@@ -292,7 +292,7 @@ public class StorageManager(string filePath)
         {
             var id = GetEntityId(entity);
             var buffer = SerializeRecord(entity, entityMetadata);
-            long offset = tableMetadata.DataStartOffset + (id - 1) * tableMetadata.RecordSize;
+            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             await file.WriteAsync(buffer, cancellationToken);
         }
@@ -301,7 +301,7 @@ public class StorageManager(string filePath)
         foreach (var entity in deleted)
         {
             var id = GetEntityId(entity);
-            long offset = tableMetadata.DataStartOffset + (id - 1) * tableMetadata.RecordSize;
+            long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             await file.WriteAsync(new byte[] { 1 }, cancellationToken); // Set IsDeleted flag
         }
@@ -314,14 +314,14 @@ public class StorageManager(string filePath)
     {
         var tableMetadata = _tables[tableName];
         var tableIndex = _tables.Keys.ToList().IndexOf(tableName);
-        long metadataOffset = FILE_HEADER_SIZE + tableIndex * TABLE_META_SIZE;
+        long metadataOffset = FILE_HEADER_SIZE + (tableIndex * TABLE_META_SIZE);
 
         file.Seek(metadataOffset, SeekOrigin.Begin);
-        
+
         await using var memoryStream = new MemoryStream();
         await using var writer = new BinaryWriter(memoryStream, Encoding.UTF8, leaveOpen: true);
         WriteTableMetadata(writer, tableMetadata);
-        
+
         memoryStream.Seek(0, SeekOrigin.Begin);
         await memoryStream.CopyToAsync(file, cancellationToken);
     }
@@ -336,7 +336,7 @@ public class StorageManager(string filePath)
     {
         var tableMetadata = _tables[tableName];
         var tableIndex = _tables.Keys.ToList().IndexOf(tableName);
-        long metadataOffset = FILE_HEADER_SIZE + tableIndex * TABLE_META_SIZE;
+        long metadataOffset = FILE_HEADER_SIZE + (tableIndex * TABLE_META_SIZE);
 
         file.Seek(metadataOffset, SeekOrigin.Begin);
         using var writer = new BinaryWriter(file, Encoding.UTF8, leaveOpen: true);
@@ -347,7 +347,7 @@ public class StorageManager(string filePath)
     {
         var buffer = new byte[metadata.RecordSize];
         var span = buffer.AsSpan();
-        
+
         // IsDeleted flag (always 0 for new/modified records)
         span[0] = 0;
         int offset = 1;
@@ -390,16 +390,16 @@ public class StorageManager(string filePath)
             offset = 1;
         }
 
-        if (isNull)
+        if (value == null)
             return;
 
         var dataSpan = buffer[offset..];
 
         if (underlyingType == typeof(string))
         {
-            var str = (string)value!;
+            var str = (string)value;
             int bytesWritten = Encoding.UTF8.GetBytes(str, dataSpan[..size]);
-            
+
             // Ensure we don't split UTF-8 multi-byte characters
             if (bytesWritten == size && Encoding.UTF8.GetCharCount(dataSpan[..bytesWritten]) < str.Length)
             {
@@ -409,7 +409,7 @@ public class StorageManager(string filePath)
                     bytesWritten--;
                 }
             }
-            
+
             // Clear remaining bytes
             if (bytesWritten < size)
             {
@@ -461,6 +461,7 @@ public class StorageManager(string filePath)
                 return null;
         }
 
+        // The remaining data starts after the nullable byte (if any)
         var dataSpan = buffer[offset..size];
 
         if (underlyingType == typeof(string))
@@ -493,13 +494,19 @@ public class StorageManager(string filePath)
         return null;
     }
 
-    private int GetEntityId(object entity)
+    private int GetEntityId<T>(T entity) where T : notnull
     {
-        var idProperty = entity.GetType().GetProperty("Id");
-        if (idProperty == null || idProperty.PropertyType != typeof(int))
-            throw new InvalidOperationException("Entity must have an 'Id' property of type int");
+        ArgumentNullException.ThrowIfNull(entity);
 
-        return (int)idProperty.GetValue(entity)!;
+        var idProperty = typeof(T).GetProperty("Id");
+        if (idProperty is null || idProperty.PropertyType != typeof(int))
+            throw new InvalidOperationException($"Entity type '{typeof(T).Name}' must have an 'Id' property of type int");
+
+        var idValue = idProperty.GetValue(entity);
+        if (idValue is null)
+            throw new InvalidOperationException($"The 'Id' property of entity type '{typeof(T).Name}' cannot be null");
+
+        return (int)idValue;
     }
 
     private EntityMetadata GetOrCreateEntityMetadata(Type type)
@@ -510,12 +517,12 @@ public class StorageManager(string filePath)
         }
 
         metadata = EntityMetadata.Create(type);
-        
+
         // Rebuild frozen dictionary with new entry
         var builder = _entityMetadataCache.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
         builder[type] = metadata;
         _entityMetadataCache = builder.ToFrozenDictionary();
-        
+
         return metadata;
     }
 

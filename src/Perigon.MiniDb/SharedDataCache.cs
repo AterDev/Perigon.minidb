@@ -6,7 +6,7 @@ namespace Perigon.MiniDb;
 /// </summary>
 internal static class SharedDataCache
 {
-    private static readonly Dictionary<string, FileDataCache> _caches = new();
+    private static readonly Dictionary<string, FileDataCache> _caches = [];
     private static readonly Lock _cacheLock = new();
     private static int _isDisposed;
 
@@ -90,6 +90,7 @@ internal class FileDataCache(string filePath) : IDisposable
     private readonly string _filePath = filePath;
     private readonly Dictionary<string, object> _tableData = new();
     private readonly Lock _dataLock = new();
+    private readonly SemaphoreSlim _asyncLock = new(1, 1);
     private int _refCount = 0;
     private int _disposed = 0;
 
@@ -126,7 +127,7 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void EnterReadLock()
     {
-        Monitor.Enter(_dataLock);
+        _dataLock.Enter();
     }
 
     /// <summary>
@@ -134,7 +135,7 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void ExitReadLock()
     {
-        Monitor.Exit(_dataLock);
+        _dataLock.Exit();
     }
 
     /// <summary>
@@ -142,7 +143,7 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void EnterWriteLock()
     {
-        Monitor.Enter(_dataLock);
+        _dataLock.Enter();
     }
 
     /// <summary>
@@ -150,7 +151,23 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public void ExitWriteLock()
     {
-        Monitor.Exit(_dataLock);
+        _dataLock.Exit();
+    }
+
+    /// <summary>
+    /// Acquires an async lock for thread-safe write operations
+    /// </summary>
+    public async Task EnterWriteLockAsync(CancellationToken cancellationToken = default)
+    {
+        await _asyncLock.WaitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Releases an async write lock
+    /// </summary>
+    public void ExitWriteLockAsync()
+    {
+        _asyncLock.Release();
     }
 
     public void Dispose()
@@ -158,5 +175,7 @@ internal class FileDataCache(string filePath) : IDisposable
         // Use CompareExchange for thread-safe disposal check
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
+
+        _asyncLock.Dispose();
     }
 }
