@@ -17,6 +17,9 @@ public class MiniDbAsyncTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Explicitly release the shared cache
+        await TestDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        
         // Small delay to ensure all file handles are released
         await Task.Delay(10);
         

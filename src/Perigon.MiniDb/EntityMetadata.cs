@@ -20,13 +20,14 @@ public class FieldMetadata
 public class EntityMetadata
 {
     public Type EntityType { get; set; } = null!;
-    public FrozenSet<FieldMetadata> Fields { get; set; } = FrozenSet<FieldMetadata>.Empty;
+    public FieldMetadata[] Fields { get; set; } = [];
     public int RecordSize { get; set; }
 
     public static EntityMetadata Create(Type entityType)
     {
         var properties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite)
+            .OrderBy(p => p.Name)  // Sort by name for consistent ordering
             .ToArray();
         
         var fields = new FieldMetadata[properties.Length];
@@ -48,7 +49,7 @@ public class EntityMetadata
         return new EntityMetadata
         {
             EntityType = entityType,
-            Fields = fields.ToFrozenSet(),
+            Fields = fields,
             RecordSize = offset
         };
     }

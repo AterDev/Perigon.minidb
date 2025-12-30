@@ -59,6 +59,9 @@ public class MiniDbTests : IDisposable
 
     public void Dispose()
     {
+        // Explicitly release the shared cache
+        TestDbContext.ReleaseSharedCache(_testDbPath);
+        
         if (File.Exists(_testDbPath))
         {
             File.Delete(_testDbPath);
@@ -561,6 +564,9 @@ public class MiniDbTests : IDisposable
             db.Users.Add(user);
             db.SaveChanges();
         }
+
+        // Release cache to force reload from disk
+        TestDbContext.ReleaseSharedCache(_testDbPath);
 
         // Reload from disk to verify string was truncated at storage level
         using var db2 = new TestDbContext(_testDbPath);

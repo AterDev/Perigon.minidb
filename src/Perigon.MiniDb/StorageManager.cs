@@ -18,16 +18,23 @@ public class TableMetadata
 /// <summary>
 /// Manage file I/O with fixed-length binary format
 /// </summary>
-public class StorageManager(string filePath)
+internal class StorageManager
 {
     private const int FILE_HEADER_SIZE = 256;
     private const int TABLE_META_SIZE = 128;
     private const string MAGIC_NUMBER = "MDB1";
     private const short VERSION = 1;
 
-    private readonly string _filePath = filePath;
+    private readonly string _filePath;
+    private readonly FileWriteQueue _writeQueue;
     private readonly Dictionary<string, TableMetadata> _tables = [];
     private FrozenDictionary<Type, EntityMetadata> _entityMetadataCache = FrozenDictionary<Type, EntityMetadata>.Empty;
+
+    public StorageManager(string filePath, FileWriteQueue writeQueue)
+    {
+        _filePath = filePath;
+        _writeQueue = writeQueue;
+    }
 
     public void Initialize(Dictionary<string, Type> tableTypes)
     {
@@ -232,10 +239,23 @@ public class StorageManager(string filePath)
 
     public void SaveChanges<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
     {
+        // Queue the write operation to ensure single-threaded file access
+        // Use Task.Run to avoid potential deadlocks in synchronization contexts
+        Task.Run(async () =>
+        {
+            await _writeQueue.QueueWriteAsync(() =>
+            {
+                SaveChangesInternal(tableName, added, modified, deleted);
+            });
+        }).GetAwaiter().GetResult();
+    }
+
+    private void SaveChangesInternal<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
+    {
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
 
-        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite);
+        using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
 
         // Handle added records
         foreach (var entity in added)
@@ -265,11 +285,25 @@ public class StorageManager(string filePath)
             file.WriteByte(1); // Set IsDeleted flag
         }
 
+        // Ensure data is written to disk
+        file.Flush(flushToDisk: true);
+
         // Update table metadata in the same file stream
         UpdateTableMetadata(tableName, file);
+        file.Flush(flushToDisk: true);
     }
 
     public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
+        CancellationToken cancellationToken = default) where T : notnull
+    {
+        // Queue the write operation to ensure single-threaded file access
+        await _writeQueue.QueueWriteAsync(async () =>
+        {
+            await SaveChangesInternalAsync(tableName, added, modified, deleted, cancellationToken);
+        }, cancellationToken);
+    }
+
+    private async Task SaveChangesInternalAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
         CancellationToken cancellationToken = default) where T : notnull
     {
         var tableMetadata = _tables[tableName];
@@ -306,8 +340,12 @@ public class StorageManager(string filePath)
             await file.WriteAsync(new byte[] { 1 }, cancellationToken); // Set IsDeleted flag
         }
 
+        // Ensure data is written to disk
+        await file.FlushAsync(cancellationToken);
+
         // Update table metadata in the same file stream
         await UpdateTableMetadataAsync(tableName, file, cancellationToken);
+        await file.FlushAsync(cancellationToken);
     }
 
     private async Task UpdateTableMetadataAsync(string tableName, FileStream file, CancellationToken cancellationToken = default)
@@ -394,14 +432,35 @@ public class StorageManager(string filePath)
             return;
 
         var dataSpan = buffer[offset..];
+        int dataSize = size - offset; // Adjust size to account for nullable byte
 
         if (underlyingType == typeof(string))
         {
             var str = (string)value;
-            int bytesWritten = Encoding.UTF8.GetBytes(str, dataSpan[..size]);
+            
+            // Truncate string if it's too long for the buffer
+            // Use binary search to find the maximum number of characters that fit in the buffer
+            int maxChars = str.Length;
+            if (Encoding.UTF8.GetByteCount(str) > dataSize)
+            {
+                // Binary search to find the maximum number of characters that fit
+                int low = 0, high = str.Length;
+                while (low < high)
+                {
+                    int mid = (low + high + 1) / 2;
+                    if (Encoding.UTF8.GetByteCount(str.AsSpan(0, mid)) <= dataSize)
+                        low = mid;
+                    else
+                        high = mid - 1;
+                }
+                maxChars = low;
+            }
+            
+            int bytesWritten = Encoding.UTF8.GetBytes(str.AsSpan(0, maxChars), dataSpan);
 
-            // Ensure we don't split UTF-8 multi-byte characters
-            if (bytesWritten == size && Encoding.UTF8.GetCharCount(dataSpan[..bytesWritten]) < str.Length)
+            // Ensure we don't split UTF-8 multi-byte characters at the boundary
+            // Check if we truncated and the last byte indicates a multi-byte character
+            if (bytesWritten > 0 && maxChars < str.Length && (dataSpan[bytesWritten - 1] & 0x80) != 0)
             {
                 // Scan backwards to find a valid UTF-8 character boundary
                 while (bytesWritten > 0 && (dataSpan[bytesWritten - 1] & 0xC0) == 0x80)
@@ -411,9 +470,9 @@ public class StorageManager(string filePath)
             }
 
             // Clear remaining bytes
-            if (bytesWritten < size)
+            if (bytesWritten < dataSize)
             {
-                dataSpan[bytesWritten..size].Clear();
+                dataSpan[bytesWritten..dataSize].Clear();
             }
         }
         else if (underlyingType == typeof(int))
@@ -480,6 +539,10 @@ public class StorageManager(string filePath)
         }
         else if (underlyingType == typeof(decimal))
         {
+            if (dataSpan.Length < 16)
+            {
+                throw new InvalidOperationException($"Insufficient data for decimal field: expected 16 bytes, got {dataSpan.Length} bytes");
+            }
             Span<int> bits = stackalloc int[4];
             for (int i = 0; i < 4; i++)
                 bits[i] = BitConverter.ToInt32(dataSpan[(i * 4)..]);
