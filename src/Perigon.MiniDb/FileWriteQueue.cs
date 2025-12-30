@@ -8,6 +8,8 @@ namespace Perigon.MiniDb;
 /// </summary>
 internal class FileWriteQueue : IDisposable
 {
+    private const int DefaultDisposeTimeoutSeconds = 10;
+    
     private readonly string _filePath;
     private readonly Channel<WriteOperation> _writeChannel;
     private readonly Task _writerTask;
@@ -87,7 +89,8 @@ internal class FileWriteQueue : IDisposable
         // Ensure all writes are flushed before disposing
         try
         {
-            FlushAsync().GetAwaiter().GetResult();
+            // Use Task.Run to avoid potential deadlocks in synchronization contexts
+            Task.Run(async () => await FlushAsync().ConfigureAwait(false)).Wait(TimeSpan.FromSeconds(DefaultDisposeTimeoutSeconds));
         }
         catch
         {
@@ -101,7 +104,7 @@ internal class FileWriteQueue : IDisposable
         // Wait for the writer task to complete (with timeout)
         try
         {
-            _writerTask.Wait(TimeSpan.FromSeconds(10));
+            _writerTask.Wait(TimeSpan.FromSeconds(DefaultDisposeTimeoutSeconds));
         }
         catch
         {

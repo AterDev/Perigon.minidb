@@ -455,7 +455,7 @@ internal class StorageManager
             int bytesWritten = Encoding.UTF8.GetBytes(str.AsSpan(0, maxChars), dataSpan);
 
             // Ensure we don't split UTF-8 multi-byte characters at the boundary
-            if (bytesWritten > 0 && bytesWritten < str.Length && (dataSpan[bytesWritten - 1] & 0x80) != 0)
+            if (bytesWritten > 0 && maxChars < str.Length && (dataSpan[bytesWritten - 1] & 0x80) != 0)
             {
                 // Scan backwards to find a valid UTF-8 character boundary
                 while (bytesWritten > 0 && (dataSpan[bytesWritten - 1] & 0xC0) == 0x80)
