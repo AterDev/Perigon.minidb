@@ -240,9 +240,13 @@ internal class StorageManager
     public void SaveChanges<T>(string tableName, List<T> added, List<T> modified, List<T> deleted) where T : notnull
     {
         // Queue the write operation to ensure single-threaded file access
-        _writeQueue.QueueWriteAsync(() =>
+        // Use Task.Run to avoid potential deadlocks in synchronization contexts
+        Task.Run(async () =>
         {
-            SaveChangesInternal(tableName, added, modified, deleted);
+            await _writeQueue.QueueWriteAsync(() =>
+            {
+                SaveChangesInternal(tableName, added, modified, deleted);
+            });
         }).GetAwaiter().GetResult();
     }
 
@@ -435,12 +439,12 @@ internal class StorageManager
             var str = (string)value;
             
             // Truncate string if it's too long for the buffer
-            // This is an approximation - we'll refine below if we hit the exact boundary
-            int maxChars = Math.Min(str.Length, dataSize);
+            // Use binary search to find the maximum number of characters that fit in the buffer
+            int maxChars = str.Length;
             if (Encoding.UTF8.GetByteCount(str) > dataSize)
             {
                 // Binary search to find the maximum number of characters that fit
-                int low = 0, high = maxChars;
+                int low = 0, high = str.Length;
                 while (low < high)
                 {
                     int mid = (low + high + 1) / 2;
@@ -455,6 +459,7 @@ internal class StorageManager
             int bytesWritten = Encoding.UTF8.GetBytes(str.AsSpan(0, maxChars), dataSpan);
 
             // Ensure we don't split UTF-8 multi-byte characters at the boundary
+            // Check if we truncated and the last byte indicates a multi-byte character
             if (bytesWritten > 0 && maxChars < str.Length && (dataSpan[bytesWritten - 1] & 0x80) != 0)
             {
                 // Scan backwards to find a valid UTF-8 character boundary

@@ -219,7 +219,8 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
         var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
         
         // Flush any pending writes before releasing
-        cache.WriteQueue.FlushAsync().GetAwaiter().GetResult();
+        // Use Task.Run to avoid potential deadlocks in synchronization contexts
+        Task.Run(async () => await cache.WriteQueue.FlushAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
         
         SharedDataCache.ReleaseCache(normalizedPath);
     }

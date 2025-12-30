@@ -29,10 +29,14 @@ internal class FileWriteQueue : IDisposable
     }
 
     /// <summary>
-    /// Queues a write operation to be executed by the single writer thread
+    /// Queues a write operation to be executed by the single writer thread.
+    /// Note: This method blocks until the operation completes to ensure write ordering.
     /// </summary>
     public async Task QueueWriteAsync(Func<Task> writeAction, CancellationToken cancellationToken = default)
     {
+        if (_disposed)
+            throw new ObjectDisposedException(nameof(FileWriteQueue), $"Cannot queue write operations to disposed queue for file: {_filePath}");
+            
         var operation = new WriteOperation(writeAction);
         await _writeChannel.Writer.WriteAsync(operation, cancellationToken);
         await operation.CompletionSource.Task;
@@ -86,20 +90,8 @@ internal class FileWriteQueue : IDisposable
 
         _disposed = true;
 
-        // Ensure all writes are flushed before disposing
-        try
-        {
-            // Use Task.Run to avoid potential deadlocks in synchronization contexts
-            Task.Run(async () => await FlushAsync().ConfigureAwait(false)).Wait(TimeSpan.FromSeconds(DefaultDisposeTimeoutSeconds));
-        }
-        catch
-        {
-            // Ignore exceptions during flush
-        }
-
-        // Signal shutdown and complete the channel
+        // Signal shutdown and complete the channel first to prevent new operations
         _writeChannel.Writer.Complete();
-        _shutdownCts.Cancel();
 
         // Wait for the writer task to complete (with timeout)
         try
@@ -111,6 +103,7 @@ internal class FileWriteQueue : IDisposable
             // Ignore exceptions during disposal
         }
 
+        _shutdownCts.Cancel();
         _shutdownCts.Dispose();
     }
 
