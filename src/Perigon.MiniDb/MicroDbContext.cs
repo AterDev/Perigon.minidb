@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Perigon.MiniDb;
@@ -17,6 +19,11 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     private readonly Dictionary<string, Type> _tableTypes = [];
     private bool _disposed = false;
 
+    // Cache for table loading delegates to avoid repeated reflection
+    private static readonly ConcurrentDictionary<Type, List<Func<MicroDbContext, CancellationToken, Task>>> _loadingDelegatesCache = new();
+    // Cache for table type initialization delegates
+    private static readonly ConcurrentDictionary<Type, Action<MicroDbContext>> _initializationDelegatesCache = new();
+
     protected MicroDbContext(string filePath)
     {
         _filePath = filePath;
@@ -35,44 +42,72 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
     private void InitializeDbSets()
     {
-        var dbSetProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType &&
-                        p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .ToList();
-
-        foreach (var property in dbSetProperties)
+        var type = GetType();
+        var initializer = _initializationDelegatesCache.GetOrAdd(type, t =>
         {
-            var entityType = property.PropertyType.GetGenericArguments()[0];
-            var tableName = property.Name;
-            _tableTypes[tableName] = entityType;
-        }
+            var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.PropertyType.IsGenericType &&
+                            p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>));
+
+            var actions = new List<Action<MicroDbContext>>();
+            foreach (var prop in properties)
+            {
+                var entityType = prop.PropertyType.GetGenericArguments()[0];
+                var name = prop.Name;
+                actions.Add(ctx => ctx._tableTypes[name] = entityType);
+            }
+
+            return ctx => { foreach (var action in actions) action(ctx); };
+        });
+
+        initializer(this);
     }
 
     private async Task LoadAllTablesAsync(CancellationToken cancellationToken = default)
     {
-        var dbSetProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType &&
-                        p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .ToList();
-
-        foreach (var property in dbSetProperties)
+        var type = GetType();
+        var loaders = _loadingDelegatesCache.GetOrAdd(type, t =>
         {
-            var entityType = property.PropertyType.GetGenericArguments()[0];
-            var tableName = property.Name;
+            var list = new List<Func<MicroDbContext, CancellationToken, Task>>();
+            var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.PropertyType.IsGenericType &&
+                            p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>));
 
-            // Use helper method to load table data with proper generic type handling
-            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelperAsync),
-                BindingFlags.NonPublic | BindingFlags.Instance)!
-                .MakeGenericMethod(entityType);
+            foreach (var prop in properties)
+            {
+                var entityType = prop.PropertyType.GetGenericArguments()[0];
+                var name = prop.Name;
 
-            var dbSetTask = (Task)helperMethod.Invoke(this, [tableName, cancellationToken])!;
-            await dbSetTask.ConfigureAwait(false);
+                // MethodInfo for LoadAndSetPropertyAsync<T>
+                var method = typeof(MicroDbContext).GetMethod(nameof(LoadAndSetPropertyAsync),
+                    BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(entityType);
 
-            var dbSet = dbSetTask.GetType().GetProperty("Result")!.GetValue(dbSetTask);
+                // Create delegate using Expression tree to avoid Invoke overhead
+                var ctxParam = Expression.Parameter(typeof(MicroDbContext), "ctx");
+                var ctParam = Expression.Parameter(typeof(CancellationToken), "ct");
+                var propConst = Expression.Constant(prop);
+                var nameConst = Expression.Constant(name);
 
-            property.SetValue(this, dbSet);
-            _dbSets[tableName] = dbSet!;
+                var call = Expression.Call(ctxParam, method, propConst, nameConst, ctParam);
+                var lambda = Expression.Lambda<Func<MicroDbContext, CancellationToken, Task>>(call, ctxParam, ctParam);
+
+                list.Add(lambda.Compile());
+            }
+            return list;
+        });
+
+        foreach (var loader in loaders)
+        {
+            await loader(this, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private async Task LoadAndSetPropertyAsync<T>(PropertyInfo property, string tableName, CancellationToken cancellationToken) where T : class, IMicroEntity, new()
+    {
+        var dbSet = await LoadTableHelperAsync<T>(tableName, cancellationToken);
+        property.SetValue(this, dbSet);
+        _dbSets[tableName] = dbSet;
     }
 
     private async Task<DbSet<T>> LoadTableHelperAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
@@ -84,6 +119,24 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
         // Create and return DbSet instance with shared cache for synchronization
         return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
+    }
+
+    /// <summary>
+    /// Returns a DbSet instance for the specified entity type.
+    /// </summary>
+    /// <typeparam name="TEntity">The type of entity for which a set should be returned.</typeparam>
+    /// <returns>The DbSet for the given entity type.</returns>
+    public DbSet<TEntity> Set<TEntity>() where TEntity : IMicroEntity
+    {
+        foreach (var dbSet in _dbSets.Values)
+        {
+            if (dbSet is DbSet<TEntity> typedDbSet)
+            {
+                return typedDbSet;
+            }
+        }
+
+        throw new InvalidOperationException($"Cannot find DbSet for type {typeof(TEntity).Name}. Ensure it is declared as a public property on the context.");
     }
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)

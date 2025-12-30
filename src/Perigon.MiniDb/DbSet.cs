@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Runtime.InteropServices;
-using System.Linq;
 
 namespace Perigon.MiniDb;
 
@@ -8,13 +7,13 @@ namespace Perigon.MiniDb;
 /// Entity collection with LINQ support.
 /// Uses direct property access via IMicroEntity interface for optimal performance.
 /// </summary>
-public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicroEntity
+public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 {
     private readonly List<TEntity> _entities;
     private readonly ChangeTracker _changeTracker;
     private readonly string _tableName;
     private readonly FileDataCache _sharedCache;
-    
+
     // Track maximum ID for O(1) ID assignment
     private int _maxId;
 
@@ -24,7 +23,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicro
         _changeTracker = changeTracker;
         _tableName = tableName;
         _sharedCache = sharedCache;
-        
+
         // Calculate max ID once during initialization using direct property access
         _maxId = entities.Count > 0 ? entities.Max(e => e.Id) : 0;
     }
@@ -97,8 +96,8 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicro
         return GetEnumerator();
     }
 
-    public int Count 
-    { 
+    public int Count
+    {
         get
         {
             _sharedCache.EnterReadLock();
