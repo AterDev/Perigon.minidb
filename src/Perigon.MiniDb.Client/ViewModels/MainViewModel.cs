@@ -125,7 +125,7 @@ public class MainViewModel : INotifyPropertyChanged
     private void AddConnection()
     {
         var dialog = new Views.ConnectionDialog();
-        if (dialog.ShowDialog() == true && dialog.Connection != null)
+        if (dialog.ShowDialog() is true && dialog.Connection != null)
         {
             try
             {
@@ -144,7 +144,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (SelectedConnection == null) return;
 
         var dialog = new Views.ConnectionDialog(SelectedConnection);
-        if (dialog.ShowDialog() == true && dialog.Connection != null)
+        if (dialog.ShowDialog() is true && dialog.Connection != null)
         {
             try
             {

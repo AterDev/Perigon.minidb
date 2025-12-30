@@ -25,7 +25,7 @@ public partial class MainWindow : Window
             FileName = "sample.mdb"
         };
 
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() is true)
         {
             try
             {

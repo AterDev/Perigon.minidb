@@ -28,7 +28,7 @@ public partial class ConnectionDialog : Window
             CheckFileExists = false
         };
 
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() is true)
         {
             PathTextBox.Text = dialog.FileName;
             
