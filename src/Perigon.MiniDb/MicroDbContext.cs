@@ -11,8 +11,8 @@ public abstract class MicroDbContext : IDisposable
     private readonly StorageManager _storageManager;
     private readonly ChangeTracker _changeTracker;
     private readonly FileDataCache _sharedCache;
-    private readonly Dictionary<string, object> _dbSets = new();
-    private readonly Dictionary<string, Type> _tableTypes = new();
+    private readonly Dictionary<string, object> _dbSets = [];
+    private readonly Dictionary<string, Type> _tableTypes = [];
     private bool _disposed = false;
 
     protected MicroDbContext(string filePath)
@@ -30,7 +30,7 @@ public abstract class MicroDbContext : IDisposable
     private void InitializeDbSets()
     {
         var dbSetProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType && 
+            .Where(p => p.PropertyType.IsGenericType &&
                         p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
             .ToList();
 
@@ -45,7 +45,7 @@ public abstract class MicroDbContext : IDisposable
     private void LoadAllTables()
     {
         var dbSetProperties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType && 
+            .Where(p => p.PropertyType.IsGenericType &&
                         p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
             .ToList();
 
@@ -55,12 +55,12 @@ public abstract class MicroDbContext : IDisposable
             var tableName = property.Name;
 
             // Use helper method to load table data with proper generic type handling
-            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelper), 
+            var helperMethod = typeof(MicroDbContext).GetMethod(nameof(LoadTableHelper),
                 BindingFlags.NonPublic | BindingFlags.Instance)!
                 .MakeGenericMethod(entityType);
-            
-            var dbSet = helperMethod.Invoke(this, new object[] { tableName });
-            
+
+            var dbSet = helperMethod.Invoke(this, [tableName]);
+
             property.SetValue(this, dbSet);
             _dbSets[tableName] = dbSet!;
         }
@@ -70,7 +70,7 @@ public abstract class MicroDbContext : IDisposable
     {
         // Load entities from shared cache (or from storage if not cached)
         var entities = _sharedCache.GetOrLoadTableData<T>(tableName, () => _storageManager.LoadTable<T>(tableName));
-        
+
         // Create and return DbSet instance with shared cache for synchronization
         return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
     }
@@ -104,18 +104,18 @@ public abstract class MicroDbContext : IDisposable
                     var addedList = Activator.CreateInstance(listType)!;
                     var modifiedList = Activator.CreateInstance(listType)!;
                     var deletedList = Activator.CreateInstance(listType)!;
-                    
+
                     var addMethod = listType.GetMethod("Add")!;
                     foreach (var item in added)
-                        addMethod.Invoke(addedList, new[] { item });
+                        addMethod.Invoke(addedList, [item]);
                     foreach (var item in modified)
-                        addMethod.Invoke(modifiedList, new[] { item });
+                        addMethod.Invoke(modifiedList, [item]);
                     foreach (var item in deleted)
-                        addMethod.Invoke(deletedList, new[] { item });
+                        addMethod.Invoke(deletedList, [item]);
 
                     var saveMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.SaveChanges))!
                         .MakeGenericMethod(entityType);
-                    saveMethod.Invoke(_storageManager, new object[] { tableName, addedList, modifiedList, deletedList });
+                    saveMethod.Invoke(_storageManager, [tableName, addedList, modifiedList, deletedList]);
                 }
             }
         }

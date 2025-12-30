@@ -116,18 +116,13 @@ internal static class SharedDataCache
 /// <summary>
 /// Holds the actual data cache for a single database file
 /// </summary>
-internal class FileDataCache : IDisposable
+internal class FileDataCache(string filePath) : IDisposable
 {
-    private readonly string _filePath;
+    private readonly string _filePath = filePath;
     private readonly Dictionary<string, object> _tableData = new();
     private readonly ReaderWriterLockSlim _dataLock = new(LockRecursionPolicy.NoRecursion);
     private int _refCount = 0;
     private int _disposed = 0;
-
-    public FileDataCache(string filePath)
-    {
-        _filePath = filePath;
-    }
 
     public int IncrementRefCount()
     {

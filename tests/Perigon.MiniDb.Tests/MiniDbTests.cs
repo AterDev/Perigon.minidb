@@ -42,14 +42,10 @@ public class Product
 }
 
 // Test DbContext
-public class TestDbContext : MicroDbContext
+public class TestDbContext(string filePath) : MicroDbContext(filePath)
 {
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
-
-    public TestDbContext(string filePath) : base(filePath)
-    {
-    }
 }
 
 public class MiniDbTests : IDisposable

@@ -43,14 +43,10 @@ public class Product
 }
 
 // Define database context
-public class SampleDbContext : MicroDbContext
+public class SampleDbContext(string filePath) : MicroDbContext(filePath)
 {
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
-
-    public SampleDbContext(string filePath) : base(filePath)
-    {
-    }
 }
 
 class Program
@@ -60,7 +56,7 @@ class Program
         Console.WriteLine("=== Perigon.MiniDb Sample Application ===\n");
 
         var dbPath = "sample.mdb";
-        
+
         // Clean up existing database for demo
         if (File.Exists(dbPath))
         {
@@ -111,7 +107,7 @@ class Program
             db.Users.Add(user);
             Console.WriteLine($"Added: {user.Name} (Age: {user.Age}, Balance: {user.Balance:C})");
         }
-        
+
         db.SaveChanges();
         Console.WriteLine($"✓ Saved {users.Length} users to database\n");
 
@@ -150,13 +146,13 @@ class Program
             db.Products.Add(product);
             Console.WriteLine($"Added: {product.Name} (Price: {product.Price:C}, Available: {product.IsAvailable})");
         }
-        
+
         db.SaveChanges();
         Console.WriteLine($"✓ Saved {products.Length} products to database\n");
 
         // === Demo 3: Query with LINQ ===
         Console.WriteLine("--- Demo 3: Querying with LINQ ---");
-        
+
         Console.WriteLine("\n3.1. Active users:");
         var activeUsers = db.Users.Where(u => u.IsActive).ToList();
         foreach (var user in activeUsers)
@@ -189,24 +185,24 @@ class Program
         Console.WriteLine("\n--- Demo 4: Updating Entities ---");
         var alice = db.Users.First(u => u.Name == "Alice");
         Console.WriteLine($"Before: Alice's balance = {alice.Balance:C}");
-        
+
         alice.Balance += 500m;
         alice.CategoryId = 3;
         db.Users.Update(alice);
         db.SaveChanges();
-        
+
         Console.WriteLine($"After: Alice's balance = {alice.Balance:C}, Category = {alice.CategoryId}");
         Console.WriteLine("✓ Updated Alice's information\n");
 
         // Update product availability
         var keyboard = db.Products.First(p => p.Name == "Mechanical Keyboard");
         Console.WriteLine($"Before: {keyboard.Name} availability = {keyboard.IsAvailable}");
-        
+
         keyboard.IsAvailable = true;
         keyboard.Price = 129.99m; // Price reduction
         db.Products.Update(keyboard);
         db.SaveChanges();
-        
+
         Console.WriteLine($"After: {keyboard.Name} availability = {keyboard.IsAvailable}, Price = {keyboard.Price:C}");
         Console.WriteLine("✓ Updated product information\n");
 
@@ -214,15 +210,15 @@ class Program
         Console.WriteLine("--- Demo 5: Deleting Entities ---");
         var bob = db.Users.First(u => u.Name == "Bob");
         Console.WriteLine($"Deleting user: {bob.Name}");
-        
+
         db.Users.Remove(bob);
         db.SaveChanges();
-        
+
         Console.WriteLine($"✓ User deleted. Remaining users: {db.Users.Count}\n");
 
         // === Demo 6: Complex queries ===
         Console.WriteLine("--- Demo 6: Complex Queries ---");
-        
+
         Console.WriteLine("\n6.1. Average balance of active users:");
         var avgBalance = db.Users.Where(u => u.IsActive).Average(u => u.Balance);
         Console.WriteLine($"  Average: {avgBalance:C}");
@@ -246,7 +242,7 @@ class Program
         // Get current counts
         var userCount = db.Users.Count;
         var productCount = db.Products.Count;
-        
+
         db.Dispose();
 
         // Reopen database
@@ -254,7 +250,7 @@ class Program
         Console.WriteLine($"✓ Database reopened successfully");
         Console.WriteLine($"  Users loaded: {db2.Users.Count} (expected: {userCount})");
         Console.WriteLine($"  Products loaded: {db2.Products.Count} (expected: {productCount})");
-        
+
         // Verify data integrity
         var aliceReloaded = db2.Users.First(u => u.Name == "Alice");
         Console.WriteLine($"  Alice's balance after reload: {aliceReloaded.Balance:C}");

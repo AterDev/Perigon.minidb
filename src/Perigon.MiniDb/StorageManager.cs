@@ -16,21 +16,16 @@ public class TableMetadata
 /// <summary>
 /// Manage file I/O with fixed-length binary format
 /// </summary>
-public class StorageManager
+public class StorageManager(string filePath)
 {
     private const int FILE_HEADER_SIZE = 256;
     private const int TABLE_META_SIZE = 128;
     private const string MAGIC_NUMBER = "MDB1";
     private const short VERSION = 1;
 
-    private readonly string _filePath;
+    private readonly string _filePath = filePath;
     private readonly Dictionary<string, TableMetadata> _tables = new();
     private readonly Dictionary<Type, EntityMetadata> _entityMetadataCache = new();
-
-    public StorageManager(string filePath)
-    {
-        _filePath = filePath;
-    }
 
     public void Initialize(Dictionary<string, Type> tableTypes)
     {
