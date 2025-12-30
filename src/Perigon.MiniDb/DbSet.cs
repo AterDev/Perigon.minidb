@@ -8,7 +8,7 @@ namespace Perigon.MiniDb;
 /// Entity collection with LINQ support.
 /// Uses direct property access via IMicroEntity interface for optimal performance.
 /// </summary>
-public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicroEntity, new()
+public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : class, IMicroEntity
 {
     private readonly List<TEntity> _entities;
     private readonly ChangeTracker _changeTracker;
