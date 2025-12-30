@@ -19,7 +19,7 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
     {
         _filePath = filePath;
         _sharedCache = SharedDataCache.GetOrCreateCache(filePath);
-        _storageManager = new StorageManager(filePath);
+        _storageManager = new StorageManager(filePath, _sharedCache.WriteQueue);
         _changeTracker = new ChangeTracker();
 
         InitializeDbSets();
@@ -183,6 +183,10 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
             return;
 
         _disposed = true;
+        
+        // Ensure all pending writes are completed before releasing cache
+        _sharedCache.WriteQueue.FlushAsync().GetAwaiter().GetResult();
+        
         SharedDataCache.ReleaseCache(_filePath);
         GC.SuppressFinalize(this);
     }
@@ -194,8 +198,8 @@ public abstract class MicroDbContext : IDisposable, IAsyncDisposable
 
         _disposed = true;
         
-        // Small delay to ensure any pending async operations complete
-        await Task.Yield();
+        // Ensure all pending writes are completed before releasing cache
+        await _sharedCache.WriteQueue.FlushAsync();
         
         SharedDataCache.ReleaseCache(_filePath);
         GC.SuppressFinalize(this);

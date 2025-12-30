@@ -91,6 +91,7 @@ internal class FileDataCache(string filePath) : IDisposable
     private readonly Dictionary<string, object> _tableData = new();
     private readonly Lock _dataLock = new();
     private readonly SemaphoreSlim _asyncLock = new(1, 1);
+    private readonly FileWriteQueue _writeQueue = new(filePath);
     private int _refCount = 0;
     private int _disposed = 0;
 
@@ -170,12 +171,18 @@ internal class FileDataCache(string filePath) : IDisposable
         _asyncLock.Release();
     }
 
+    /// <summary>
+    /// Gets the write queue for this file
+    /// </summary>
+    public FileWriteQueue WriteQueue => _writeQueue;
+
     public void Dispose()
     {
         // Use CompareExchange for thread-safe disposal check
         if (Interlocked.CompareExchange(ref _disposed, 1, 0) != 0)
             return;
 
+        _writeQueue.Dispose();
         _asyncLock.Dispose();
     }
 }
