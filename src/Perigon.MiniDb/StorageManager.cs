@@ -13,6 +13,11 @@ public class TableMetadata
     public int RecordCount { get; set; }
     public int RecordSize { get; set; }
     public long DataStartOffset { get; set; }
+    /// <summary>
+    /// The index of this table in the file header metadata section.
+    /// This ensures consistent offset calculations across reloads.
+    /// </summary>
+    public int TableIndex { get; set; }
 }
 
 /// <summary>
@@ -70,6 +75,7 @@ internal class StorageManager
         var metadataBuilder = new Dictionary<Type, EntityMetadata>();
 
         // Write table metadata
+        int tableIndex = 0;
         foreach (var kvp in tableTypes)
         {
             var metadata = EntityMetadata.Create(kvp.Value);
@@ -80,11 +86,16 @@ internal class StorageManager
                 TableName = kvp.Key,
                 RecordCount = 0,
                 RecordSize = metadata.RecordSize,
-                DataStartOffset = currentOffset
+                DataStartOffset = currentOffset,
+                TableIndex = tableIndex
             };
             _tables[kvp.Key] = tableMetadata;
 
             WriteTableMetadata(writer, tableMetadata);
+            tableIndex++;
+            // Each table gets its own data space. Allocate a reasonable initial capacity.
+            // This allows tables to grow without overlapping
+            currentOffset += metadata.RecordSize * 1000; // Reserve space for up to 1000 records per table
         }
 
         // Freeze the metadata cache after initialization
@@ -107,8 +118,9 @@ internal class StorageManager
         writer.Write(metadata.RecordCount);
         writer.Write(metadata.RecordSize);
         writer.Write(metadata.DataStartOffset);
+        writer.Write(metadata.TableIndex);
 
-        Span<byte> reserved = stackalloc byte[48];
+        Span<byte> reserved = stackalloc byte[44];
         reserved.Clear();
         writer.Write(reserved);
     }
@@ -138,14 +150,16 @@ internal class StorageManager
             var recordCount = reader.ReadInt32();
             var recordSize = reader.ReadInt32();
             var dataStartOffset = reader.ReadInt64();
-            reader.ReadBytes(48); // Skip reserved
+            var tableIndex = reader.ReadInt32();
+            reader.ReadBytes(44); // Skip reserved
 
             _tables[tableName] = new TableMetadata
             {
                 TableName = tableName,
                 RecordCount = recordCount,
                 RecordSize = recordSize,
-                DataStartOffset = dataStartOffset
+                DataStartOffset = dataStartOffset,
+                TableIndex = tableIndex
             };
         }
     }
@@ -252,8 +266,7 @@ internal class StorageManager
     private async Task UpdateTableMetadataAsync(string tableName, FileStream file, CancellationToken cancellationToken = default)
     {
         var tableMetadata = _tables[tableName];
-        var tableIndex = _tables.Keys.ToList().IndexOf(tableName);
-        long metadataOffset = FILE_HEADER_SIZE + (tableIndex * TABLE_META_SIZE);
+        long metadataOffset = FILE_HEADER_SIZE + (tableMetadata.TableIndex * TABLE_META_SIZE);
 
         file.Seek(metadataOffset, SeekOrigin.Begin);
 
@@ -274,8 +287,7 @@ internal class StorageManager
     private void UpdateTableMetadata(string tableName, FileStream file)
     {
         var tableMetadata = _tables[tableName];
-        var tableIndex = _tables.Keys.ToList().IndexOf(tableName);
-        long metadataOffset = FILE_HEADER_SIZE + (tableIndex * TABLE_META_SIZE);
+        long metadataOffset = FILE_HEADER_SIZE + (tableMetadata.TableIndex * TABLE_META_SIZE);
 
         file.Seek(metadataOffset, SeekOrigin.Begin);
         using var writer = new BinaryWriter(file, Encoding.UTF8, leaveOpen: true);
