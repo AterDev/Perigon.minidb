@@ -32,10 +32,10 @@ public class EntityMetadata
             .Where(p => p.GetCustomAttribute<NotMappedAttribute>() == null)  // Skip [NotMapped] properties
             .OrderBy(p => p.Name)  // Sort by name for consistent ordering
             .ToArray();
-        
+
         var fields = new FieldMetadata[properties.Length];
         int offset = 1; // Skip IsDeleted byte
-        
+
         // Add Id field first (4 bytes for int Id from IMicroEntity)
         offset += 4;
 
@@ -91,9 +91,21 @@ public static class FieldSizeCalculator
             return maxLengthAttr.Length;
         }
 
+        // Handle enum types - store as their underlying integer type
+        if (underlyingType.IsEnum)
+        {
+            var enumUnderlyingType = Enum.GetUnderlyingType(underlyingType);
+            if (!_typeSizes.TryGetValue(enumUnderlyingType, out int enumSize))
+            {
+                // Default to 4 bytes (int) for enums if underlying type is not in cache
+                enumSize = 4;
+            }
+            return isNullable ? enumSize + 1 : enumSize;
+        }
+
         if (!_typeSizes.TryGetValue(underlyingType, out int baseSize))
         {
-            throw new NotSupportedException($"Type {type.Name} is not supported");
+            throw new NotSupportedException($"Type {type.Name} on property '{property.DeclaringType?.Name}.{property.Name}' is not supported. Supported types: int, bool, decimal, DateTime, string (with [MaxLength]), and enums.");
         }
 
         // Nullable types need extra 1 byte for null marker

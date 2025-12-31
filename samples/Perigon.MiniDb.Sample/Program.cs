@@ -1,5 +1,5 @@
-﻿using Perigon.MiniDb;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
+using Perigon.MiniDb;
 
 // Define entity models
 public class User : IMicroEntity
@@ -25,7 +25,7 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        const string dbPath = "sample.mdb";
+        const string dbPath = "sample.mds";
 
         // Configure MiniDb
         MiniDbConfiguration.AddDbContext<SampleDbContext>(options => options.UseMiniDb(dbPath));

@@ -24,7 +24,7 @@ public partial class ConnectionDialog : Window
     {
         var dialog = new OpenFileDialog
         {
-            Filter = "MiniDB files (*.mdb)|*.mdb|All files (*.*)|*.*",
+            Filter = "MiniDB files (*.mds)|*.mds|All files (*.*)|*.*",
             CheckFileExists = false
         };
 

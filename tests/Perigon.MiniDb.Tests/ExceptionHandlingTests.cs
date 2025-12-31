@@ -76,7 +76,7 @@ public class ExceptionHandlingTests : IAsyncDisposable
 
     public ExceptionHandlingTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_exception_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_exception_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<InvalidDbContext>(o => o.UseMiniDb(_testDbPath));
         MiniDbConfiguration.AddDbContext<ExceptionTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
@@ -276,7 +276,7 @@ public class ExceptionHandlingTests : IAsyncDisposable
     [Fact]
     public async Task FilePath_CanBeChanged()
     {
-        var newPath = Path.Combine(Path.GetTempPath(), $"test_newpath_{Guid.NewGuid()}.mdb");
+        var newPath = Path.Combine(Path.GetTempPath(), $"test_newpath_{Guid.NewGuid()}.mds");
         try
         {
             MiniDbConfiguration.AddDbContext<DynamicPathContext>(o => o.UseMiniDb(newPath));

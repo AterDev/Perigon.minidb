@@ -18,7 +18,7 @@ public partial class App : Application
             "Perigon.MiniDb.Sample");
         
         Directory.CreateDirectory(appDataPath);
-        var sampleDbPath = Path.Combine(appDataPath, "sample.mdb");
+        var sampleDbPath = Path.Combine(appDataPath, "sample.mds");
 
         if (!File.Exists(sampleDbPath))
         {

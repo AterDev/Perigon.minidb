@@ -75,7 +75,7 @@ Perigon.MiniDb.Client/
 
 1. 点击工具栏的 `➕ Add Connection` 按钮
 2. 输入连接名称
-3. 浏览并选择数据库文件（.mdb）
+3. 浏览并选择数据库文件（.mds）
 4. 点击 OK 保存
 
 ### 3. 连接到数据库

@@ -20,9 +20,9 @@ public partial class MainWindow : Window
     {
         var dialog = new SaveFileDialog
         {
-            Filter = "MiniDB files (*.mdb)|*.mdb|All files (*.*)|*.*",
-            DefaultExt = ".mdb",
-            FileName = "sample.mdb"
+            Filter = "MiniDB files (*.mds)|*.mds|All files (*.*)|*.*",
+            DefaultExt = ".mds",
+            FileName = "sample.mds"
         };
 
         if (dialog.ShowDialog() is true)

@@ -16,7 +16,7 @@ public class ConcurrencyTests : IAsyncDisposable
 
     public ConcurrencyTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_concurrency_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_concurrency_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<ConcurrencyTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 

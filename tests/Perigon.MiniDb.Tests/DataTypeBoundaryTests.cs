@@ -46,7 +46,7 @@ public class DataTypeBoundaryTests : IAsyncDisposable
 
     public DataTypeBoundaryTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_boundary_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_boundary_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<BoundaryTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 
@@ -64,7 +64,7 @@ public class DataTypeBoundaryTests : IAsyncDisposable
     [Fact]
     public async Task String_ExceedsMaxLength_GetsTruncated()
     {
-        var tinyPath = Path.Combine(Path.GetTempPath(), $"test_tiny_{Guid.NewGuid()}.mdb");
+        var tinyPath = Path.Combine(Path.GetTempPath(), $"test_tiny_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<TinyStringDbContext>(o => o.UseMiniDb(tinyPath));
 
         try
@@ -259,7 +259,7 @@ public class DataTypeBoundaryTests : IAsyncDisposable
     [Fact]
     public async Task LargeString_Performance()
     {
-        var largePath = Path.Combine(Path.GetTempPath(), $"test_large_{Guid.NewGuid()}.mdb");
+        var largePath = Path.Combine(Path.GetTempPath(), $"test_large_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<LargeStringDbContext>(o => o.UseMiniDb(largePath));
 
         try

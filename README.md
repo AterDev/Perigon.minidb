@@ -111,7 +111,7 @@ public class MyDbContext : MiniDbContext
 
 ```csharp
 // 1. 全局配置数据库路径（通常在程序启动时）
-MiniDbConfiguration.AddDbContext<MyDbContext>(options => options.UseMiniDb("app.mdb"));
+MiniDbConfiguration.AddDbContext<MyDbContext>(options => options.UseMiniDb("app.mds"));
 
 // 2. 创建数据库上下文（无需参数）
 var db = new MyDbContext();
@@ -150,7 +150,7 @@ await using (db)
 }
 
 // 显式释放共享内存缓存（可选，通常在应用退出时调用）
-await MiniDbContext.ReleaseSharedCacheAsync("app.mdb");
+await MiniDbContext.ReleaseSharedCacheAsync("app.mds");
 ```
 
 ## 📊 支持的数据类型
@@ -314,7 +314,7 @@ Console.WriteLine(loaded.Address.City);  // "New York"
 
 ```csharp
 // ✅ 创建即可用：构造函数自动加载数据
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 await using (db)
 {
     // 直接使用，无需额外初始化
@@ -345,8 +345,8 @@ await using (db)
 
 ```csharp
 // 同一文件的多个上下文共享内存
-var db1 = new MyDbContext("app.mdb");
-var db2 = new MyDbContext("app.mdb");
+var db1 = new MyDbContext("app.mds");
+var db2 = new MyDbContext("app.mds");
 
 // db1 和 db2 看到的是同一份内存数据
 db1.Users.Add(new User 
@@ -368,14 +368,14 @@ Console.WriteLine(db2.Users.Count);  // 输出: 1
 
 ```csharp
 // DbContext 销毁时不会释放共享内存
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 await using (db)
 {
     // 使用数据库
 } // Dispose 时内存仍保留
 
 // 需要释放内存时显式调用
-await MyDbContext.ReleaseSharedCacheAsync("app.mdb");
+await MyDbContext.ReleaseSharedCacheAsync("app.mds");
 ```
 
 ### 软删除机制
@@ -394,7 +394,7 @@ var users = db.Users.ToList();  // 自动过滤已删除记录
 ### 自动ID分配
 
 ```csharp
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 
 var user = new User 
 { 
@@ -463,7 +463,7 @@ await db.SaveChangesAsync();  // 使用指定的ID
 ### 取消令牌支持
 
 ```csharp
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 
 using var cts = new CancellationTokenSource();
 cts.CancelAfter(TimeSpan.FromSeconds(30));
@@ -481,7 +481,7 @@ catch (OperationCanceledException)
 ### 批量操作
 
 ```csharp
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 
 // 批量添加
 for (int i = 0; i < 1000; i++)
@@ -503,7 +503,7 @@ await db.SaveChangesAsync();  // 一次性写入所有更新
 ### 复杂查询
 
 ```csharp
-var db = new MyDbContext("app.mdb");
+var db = new MyDbContext("app.mds");
 
 // 支持完整的 LINQ
 var result = db.Users

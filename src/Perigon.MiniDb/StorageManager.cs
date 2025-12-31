@@ -290,7 +290,7 @@ internal class StorageManager
         // IsDeleted flag (always 0 for new/modified records)
         span[0] = 0;
         int offset = 1;
-        
+
         // Write Id (4 bytes)
         BitConverter.TryWriteBytes(span[offset..], entity.Id);
         offset += 4;
@@ -309,7 +309,7 @@ internal class StorageManager
     {
         var entity = new T();
         int offset = 1; // Skip IsDeleted
-        
+
         // Read Id (4 bytes)
         entity.Id = BitConverter.ToInt32(buffer[offset..]);
         offset += 4;
@@ -384,6 +384,12 @@ internal class StorageManager
                 dataSpan[bytesWritten..dataSize].Clear();
             }
         }
+        else if (underlyingType.IsEnum)
+        {
+            // Convert enum to its underlying integer type and write it
+            var enumValue = Convert.ToInt32(value);
+            BitConverter.TryWriteBytes(dataSpan, enumValue);
+        }
         else if (underlyingType == typeof(int))
         {
             BitConverter.TryWriteBytes(dataSpan, (int)value);
@@ -437,6 +443,12 @@ internal class StorageManager
             int length = dataSpan.IndexOf((byte)0);
             if (length < 0) length = dataSpan.Length;
             return Encoding.UTF8.GetString(dataSpan[..length]);
+        }
+        else if (underlyingType.IsEnum)
+        {
+            // Read int value and convert to enum
+            int intValue = BitConverter.ToInt32(dataSpan);
+            return Enum.ToObject(underlyingType, intValue);
         }
         else if (underlyingType == typeof(int))
         {

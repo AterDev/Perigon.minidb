@@ -17,7 +17,7 @@ public class SharedMemoryTests : IAsyncDisposable
 
     public SharedMemoryTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_shared_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_shared_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<SharedMemoryTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 

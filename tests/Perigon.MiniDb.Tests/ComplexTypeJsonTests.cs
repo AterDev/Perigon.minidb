@@ -78,7 +78,7 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
     public ComplexTypeJsonTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_complextype_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_complextype_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<ComplexTypeTestContext>(o => o.UseMiniDb(_testDbPath));
     }
 

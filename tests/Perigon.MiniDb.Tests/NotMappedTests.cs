@@ -46,7 +46,7 @@ public class NotMappedTests : IAsyncDisposable
 
     public NotMappedTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_notmapped_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_notmapped_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<NotMappedTestContext>(o => o.UseMiniDb(_testDbPath));
     }
 

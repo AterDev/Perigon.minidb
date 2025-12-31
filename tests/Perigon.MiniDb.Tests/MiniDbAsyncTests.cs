@@ -57,7 +57,7 @@ public class MiniDbAsyncTests : IAsyncDisposable
 
     public MiniDbAsyncTests()
     {
-        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_async_{Guid.NewGuid()}.mdb");
+        _testDbPath = Path.Combine(Path.GetTempPath(), $"test_async_{Guid.NewGuid()}.mds");
         MiniDbConfiguration.AddDbContext<TestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 
