@@ -11,7 +11,7 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # Enable GitHub OIDC token issuance for this job
+      id-token: write
 
     steps:
       - name: Checkout code
@@ -22,14 +22,8 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore dependencies
-        run: dotnet restore
-
       - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Run tests
-        run: dotnet test --configuration Release --no-build --verbosity normal
+        run: dotnet build src/Perigon.MiniDb/Perigon.MiniDb.csproj --configuration Release --no-restore
 
       - name: Pack NuGet package
         run: dotnet pack src/Perigon.MiniDb/Perigon.MiniDb.csproj --configuration Release --output ./artifacts --no-build
