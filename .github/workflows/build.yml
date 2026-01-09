@@ -23,7 +23,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build
-        run: dotnet build src/Perigon.MiniDb/Perigon.MiniDb.csproj --configuration Release --no-restore
+        run: dotnet build src/Perigon.MiniDb/Perigon.MiniDb.csproj --configuration Release
 
       - name: Pack NuGet package
         run: dotnet pack src/Perigon.MiniDb/Perigon.MiniDb.csproj --configuration Release --output ./artifacts --no-build
