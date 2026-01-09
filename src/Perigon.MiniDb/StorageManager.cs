@@ -27,6 +27,7 @@ internal class StorageManager
 {
     private const int FILE_HEADER_SIZE = 256;
     private const int TABLE_META_SIZE = 128;
+    private const int INCREASE_RECORD_SIZE = 10;
     private const string MAGIC_NUMBER = "MDB1";
     private const short VERSION = 1;
 
@@ -93,9 +94,7 @@ internal class StorageManager
 
             WriteTableMetadata(writer, tableMetadata);
             tableIndex++;
-            // Each table gets its own data space. Allocate a reasonable initial capacity.
-            // This allows tables to grow without overlapping
-            currentOffset += metadata.RecordSize * 1000; // Reserve space for up to 1000 records per table
+            currentOffset += metadata.RecordSize * INCREASE_RECORD_SIZE;
         }
 
         // Freeze the metadata cache after initialization
