@@ -206,6 +206,134 @@ public class ComplexDataAccessTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task WhenGrowingTablesThenDataRemainsConsistentAcrossInsertUpdateDeleteAndReload()
+    {
+        // Cycle 1: Insert enough records to exceed initial reserved capacity (10) for multiple tables
+        var db1 = new ComplexDbContext();
+        await using (db1)
+        {
+            for (int i = 0; i < 25; i++)
+            {
+                db1.Solutions.Add(new Solution
+                {
+                    Name = $"Solution-{i}",
+                    DisplayName = $"Solution Display {i}",
+                    Path = $"C:\\Solutions\\Solution-{i}\\Deep\\Path",
+                    Version = "1.0.0",
+                    SolutionType = (SolutionType)((i % 4) + 1),
+                    ConfigJsonString = JsonSerializer.Serialize(new { index = i, value = new string('X', 100) })
+                });
+
+                db1.Projects.Add(new Project
+                {
+                    ProjectName = $"Project-{i}",
+                    ProjectPath = $"C:\\Projects\\Project-{i}",
+                    FrameworkVersion = "net10.0",
+                    ProjectType = (ProjectType)((i % 4) + 1),
+                    Status = ProjectStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    SolutionId = (i % 25) + 1
+                });
+
+                db1.Configurations.Add(new AppConfiguration
+                {
+                    ConfigKey = $"Key-{i}",
+                    ConfigValue = new string('V', 100),
+                    ConfigType = (ConfigType)((i % 4) + 1),
+                    IsEncrypted = i % 2 == 0,
+                    UpdatedAt = DateTime.UtcNow
+                });
+
+                db1.ApiDocumentations.Add(new ApiDocumentation
+                {
+                    ApiName = $"Api-{i}",
+                    Endpoint = $"/api/{i}",
+                    MethodType = (ApiMethodType)((i % 5) + 1),
+                    JsonSchema = JsonSerializer.Serialize(new { type = "object", i }),
+                    IsPublished = true,
+                    CreatedAt = DateTime.UtcNow,
+                    ProjectId = (i % 25) + 1
+                });
+            }
+
+            await db1.SaveChangesAsync();
+            Assert.Equal(25, db1.Solutions.Count);
+            Assert.Equal(25, db1.Projects.Count);
+            Assert.Equal(25, db1.Configurations.Count);
+            Assert.Equal(25, db1.ApiDocumentations.Count);
+        }
+
+        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        await Task.Delay(10);
+
+        // Cycle 2: Update some records and delete some records
+        var db2 = new ComplexDbContext();
+        await using (db2)
+        {
+            // Update first 5 in each table
+            foreach (var s in db2.Solutions.OrderBy(s => s.Id).Take(5))
+            {
+                s.DisplayName = $"Updated-{s.DisplayName}";
+                db2.Solutions.Update(s);
+            }
+
+            foreach (var p in db2.Projects.OrderBy(p => p.Id).Take(5))
+            {
+                p.Status = ProjectStatus.Archived;
+                db2.Projects.Update(p);
+            }
+
+            foreach (var c in db2.Configurations.OrderBy(c => c.Id).Take(5))
+            {
+                c.ConfigValue = "Updated";
+                db2.Configurations.Update(c);
+            }
+
+            foreach (var a in db2.ApiDocumentations.OrderBy(a => a.Id).Take(5))
+            {
+                a.IsPublished = false;
+                db2.ApiDocumentations.Update(a);
+            }
+
+            // Delete last 7 in each table
+            foreach (var s in db2.Solutions.OrderByDescending(s => s.Id).Take(7).ToArray())
+                db2.Solutions.Remove(s);
+            foreach (var p in db2.Projects.OrderByDescending(p => p.Id).Take(7).ToArray())
+                db2.Projects.Remove(p);
+            foreach (var c in db2.Configurations.OrderByDescending(c => c.Id).Take(7).ToArray())
+                db2.Configurations.Remove(c);
+            foreach (var a in db2.ApiDocumentations.OrderByDescending(a => a.Id).Take(7).ToArray())
+                db2.ApiDocumentations.Remove(a);
+
+            await db2.SaveChangesAsync();
+        }
+
+        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        await Task.Delay(10);
+
+        // Cycle 3: Reload and verify counts and Id uniqueness are correct
+        var db3 = new ComplexDbContext();
+        await using (db3)
+        {
+            Assert.Equal(18, db3.Solutions.Count);
+            Assert.Equal(18, db3.Projects.Count);
+            Assert.Equal(18, db3.Configurations.Count);
+            Assert.Equal(18, db3.ApiDocumentations.Count);
+
+            Assert.Equal(db3.Solutions.Count, db3.Solutions.Select(x => x.Id).Distinct().Count());
+            Assert.Equal(db3.Projects.Count, db3.Projects.Select(x => x.Id).Distinct().Count());
+            Assert.Equal(db3.Configurations.Count, db3.Configurations.Select(x => x.Id).Distinct().Count());
+            Assert.Equal(db3.ApiDocumentations.Count, db3.ApiDocumentations.Select(x => x.Id).Distinct().Count());
+
+            // Spot-check that updates persisted
+            Assert.All(db3.Solutions.OrderBy(s => s.Id).Take(5), s => Assert.StartsWith("Updated-", s.DisplayName));
+            Assert.All(db3.Projects.OrderBy(p => p.Id).Take(5), p => Assert.Equal(ProjectStatus.Archived, p.Status));
+            Assert.All(db3.Configurations.OrderBy(c => c.Id).Take(5), c => Assert.Equal("Updated", c.ConfigValue));
+            Assert.All(db3.ApiDocumentations.OrderBy(a => a.Id).Take(5), a => Assert.False(a.IsPublished));
+        }
+    }
+
+    [Fact]
     public async Task CanAddAndRetrieveSingleSolutionWithEnum()
     {
         var db = new ComplexDbContext();

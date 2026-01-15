@@ -13,6 +13,7 @@ public class TableMetadata
     public int RecordCount { get; set; }
     public int RecordSize { get; set; }
     public long DataStartOffset { get; set; }
+    public int ReservedRecordCount { get; set; }
     /// <summary>
     /// The index of this table in the file header metadata section.
     /// This ensures consistent offset calculations across reloads.
@@ -88,13 +89,14 @@ internal class StorageManager
                 RecordCount = 0,
                 RecordSize = metadata.RecordSize,
                 DataStartOffset = currentOffset,
+                ReservedRecordCount = INCREASE_RECORD_SIZE,
                 TableIndex = tableIndex
             };
             _tables[kvp.Key] = tableMetadata;
 
             WriteTableMetadata(writer, tableMetadata);
             tableIndex++;
-            currentOffset += metadata.RecordSize * INCREASE_RECORD_SIZE;
+            currentOffset += metadata.RecordSize * tableMetadata.ReservedRecordCount;
         }
 
         // Freeze the metadata cache after initialization
@@ -117,9 +119,10 @@ internal class StorageManager
         writer.Write(metadata.RecordCount);
         writer.Write(metadata.RecordSize);
         writer.Write(metadata.DataStartOffset);
+        writer.Write(metadata.ReservedRecordCount);
         writer.Write(metadata.TableIndex);
 
-        Span<byte> reserved = stackalloc byte[44];
+        Span<byte> reserved = stackalloc byte[40];
         reserved.Clear();
         writer.Write(reserved);
     }
@@ -149,8 +152,9 @@ internal class StorageManager
             var recordCount = reader.ReadInt32();
             var recordSize = reader.ReadInt32();
             var dataStartOffset = reader.ReadInt64();
+            var reservedRecordCount = reader.ReadInt32();
             var tableIndex = reader.ReadInt32();
-            reader.ReadBytes(44); // Skip reserved
+            reader.ReadBytes(40); // Skip reserved
 
             _tables[tableName] = new TableMetadata
             {
@@ -158,6 +162,7 @@ internal class StorageManager
                 RecordCount = recordCount,
                 RecordSize = recordSize,
                 DataStartOffset = dataStartOffset,
+                ReservedRecordCount = reservedRecordCount > 0 ? reservedRecordCount : INCREASE_RECORD_SIZE,
                 TableIndex = tableIndex
             };
         }
@@ -173,6 +178,11 @@ internal class StorageManager
             return result;
 
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
+        if (tableMetadata.RecordSize != entityMetadata.RecordSize)
+        {
+            throw new InvalidDataException(
+                $"Schema mismatch for table '{tableName}': file RecordSize={tableMetadata.RecordSize}, expected RecordSize={entityMetadata.RecordSize} for entity '{typeof(T).FullName}'.");
+        }
         byte[]? rentedBuffer = null;
 
         try
@@ -222,6 +232,11 @@ internal class StorageManager
     {
         var tableMetadata = _tables[tableName];
         var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
+        if (tableMetadata.RecordSize != entityMetadata.RecordSize)
+        {
+            throw new InvalidDataException(
+                $"Schema mismatch for table '{tableName}': file RecordSize={tableMetadata.RecordSize}, expected RecordSize={entityMetadata.RecordSize} for entity '{typeof(T).FullName}'.");
+        }
 
         await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read,
             bufferSize: 4096, useAsync: true);
@@ -229,6 +244,7 @@ internal class StorageManager
         // Handle added records
         foreach (var entity in added)
         {
+            await EnsureCapacityForAppendAsync(tableName, file, cancellationToken);
             var buffer = SerializeRecord(entity, entityMetadata);
             file.Seek(tableMetadata.DataStartOffset + (tableMetadata.RecordCount * tableMetadata.RecordSize), SeekOrigin.Begin);
             await file.WriteAsync(buffer, cancellationToken);
@@ -272,6 +288,85 @@ internal class StorageManager
         // Update table metadata in the same file stream
         await UpdateTableMetadataAsync(tableName, file, cancellationToken);
         await file.FlushAsync(cancellationToken);
+    }
+
+    private async Task EnsureCapacityForAppendAsync(string tableName, FileStream file, CancellationToken cancellationToken)
+    {
+        var tableMetadata = _tables[tableName];
+        if (tableMetadata.RecordCount < tableMetadata.ReservedRecordCount)
+        {
+            return;
+        }
+
+        int growByRecords = Math.Max(INCREASE_RECORD_SIZE, tableMetadata.ReservedRecordCount);
+        long growByBytes = (long)growByRecords * tableMetadata.RecordSize;
+
+        var ordered = _tables.Values
+            .OrderBy(t => t.DataStartOffset)
+            .ToArray();
+
+        int tableIndex = Array.FindIndex(ordered, t => string.Equals(t.TableName, tableName, StringComparison.Ordinal));
+        if (tableIndex < 0)
+        {
+            throw new InvalidOperationException($"Table '{tableName}' not found.");
+        }
+
+        // Shift subsequent tables (data + offsets) backwards from end to avoid overwrite.
+        for (int i = ordered.Length - 1; i > tableIndex; i--)
+        {
+            var t = ordered[i];
+            if (t.RecordCount <= 0)
+            {
+                t.DataStartOffset += growByBytes;
+                continue;
+            }
+
+            long srcStart = t.DataStartOffset;
+            long bytesToMove = (long)t.RecordCount * t.RecordSize;
+            long srcEndExclusive = srcStart + bytesToMove;
+            long destStart = srcStart + growByBytes;
+
+            await MoveRegionAsync(file, srcStart, srcEndExclusive, destStart, cancellationToken);
+            t.DataStartOffset = destStart;
+        }
+
+        tableMetadata.ReservedRecordCount += growByRecords;
+
+        foreach (var t in ordered)
+        {
+            await UpdateTableMetadataAsync(t.TableName, file, cancellationToken);
+        }
+    }
+
+    private static async Task MoveRegionAsync(FileStream file, long srcStart, long srcEndExclusive, long destStart, CancellationToken cancellationToken)
+    {
+        const int bufferSize = 64 * 1024;
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+        try
+        {
+            long remaining = srcEndExclusive - srcStart;
+            while (remaining > 0)
+            {
+                int toRead = (int)Math.Min(buffer.Length, remaining);
+                long readPos = srcStart + (remaining - toRead);
+                long writePos = destStart + (remaining - toRead);
+
+                file.Seek(readPos, SeekOrigin.Begin);
+                int read = await file.ReadAsync(buffer.AsMemory(0, toRead), cancellationToken);
+                if (read != toRead)
+                {
+                    throw new EndOfStreamException($"Unexpected EOF while moving data region. Expected {toRead} bytes, got {read}.");
+                }
+
+                file.Seek(writePos, SeekOrigin.Begin);
+                await file.WriteAsync(buffer.AsMemory(0, toRead), cancellationToken);
+                remaining -= toRead;
+            }
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     private async Task UpdateTableMetadataAsync(string tableName, FileStream file, CancellationToken cancellationToken = default)
