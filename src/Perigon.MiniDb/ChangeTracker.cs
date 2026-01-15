@@ -45,6 +45,7 @@ public class ChangeTracker
 
     public void TrackAdded(object entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
         lock (_syncRoot)
         {
             _added.Add(entity);
@@ -53,6 +54,7 @@ public class ChangeTracker
 
     public void TrackModified(object entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
         lock (_syncRoot)
         {
             if (!_added.Contains(entity))
@@ -64,6 +66,7 @@ public class ChangeTracker
 
     public void TrackDeleted(object entity)
     {
+        ArgumentNullException.ThrowIfNull(entity);
         lock (_syncRoot)
         {
             if (_added.Remove(entity))

@@ -33,27 +33,9 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
         _sharedCache.EnterWriteLock();
         try
         {
-            // Direct property access - no reflection needed
-            if (entity.Id == 0)
-            {
-                // Auto-assign next ID
-                _maxId++;
-                entity.Id = _maxId;
-            }
-            else
-            {
-                // Check for duplicate ID
-                if (_entities.Any(e => e.Id == entity.Id))
-                {
-                    throw new InvalidOperationException($"An entity with ID {entity.Id} already exists in the set.");
-                }
-
-                if (entity.Id > _maxId)
-                {
-                    // Update max ID if manually specified ID is larger
-                    _maxId = entity.Id;
-                }
-            }
+            // Id is always assigned internally to guarantee contiguous IDs.
+            _maxId++;
+            entity.Id = _maxId;
 
             _entities.Add(entity);
             _changeTracker.TrackAdded(entity);
@@ -66,7 +48,28 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 
     public void Update(TEntity entity)
     {
-        _changeTracker.TrackModified(entity);
+        _sharedCache.EnterReadLock();
+        try
+        {
+            if (entity.Id <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot update entity in table '{_tableName}' because it has no valid Id. Add the entity first.");
+            }
+
+            // Ensure the entity instance is tracked by this DbSet.
+            if (!_entities.Contains(entity))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot update entity in table '{_tableName}' because it is not tracked by this DbSet. Query it from the context first.");
+            }
+
+            _changeTracker.TrackModified(entity);
+        }
+        finally
+        {
+            _sharedCache.ExitReadLock();
+        }
     }
 
     public void Remove(TEntity entity)
@@ -74,7 +77,18 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
         _sharedCache.EnterWriteLock();
         try
         {
-            _entities.Remove(entity);
+            if (entity.Id <= 0)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot remove entity from table '{_tableName}' because it has no valid Id.");
+            }
+
+            if (!_entities.Remove(entity))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot remove entity from table '{_tableName}' because it is not tracked by this DbSet. Query it from the context first.");
+            }
+
             _changeTracker.TrackDeleted(entity);
         }
         finally

@@ -239,6 +239,12 @@ internal class StorageManager
         foreach (var entity in modified)
         {
             var id = entity.Id;
+            if (id <= 0 || id > tableMetadata.RecordCount)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot modify entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
+            }
+
             var buffer = SerializeRecord(entity, entityMetadata);
             long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
@@ -249,6 +255,12 @@ internal class StorageManager
         foreach (var entity in deleted)
         {
             var id = entity.Id;
+            if (id <= 0 || id > tableMetadata.RecordCount)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot delete entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
+            }
+
             long offset = tableMetadata.DataStartOffset + ((id - 1) * tableMetadata.RecordSize);
             file.Seek(offset, SeekOrigin.Begin);
             await file.WriteAsync(new byte[] { 1 }, cancellationToken); // Set IsDeleted flag
@@ -483,6 +495,12 @@ internal class StorageManager
         else if (underlyingType == typeof(DateTime))
         {
             long ticks = BitConverter.ToInt64(dataSpan);
+            if (ticks < DateTime.MinValue.Ticks || ticks > DateTime.MaxValue.Ticks)
+            {
+                throw new InvalidDataException(
+                    $"Invalid DateTime ticks value '{ticks}' while reading field of type '{type.FullName}'. The database file may be corrupted or the entity schema may have changed.");
+            }
+
             return new DateTime(ticks, DateTimeKind.Utc);
         }
 

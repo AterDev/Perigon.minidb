@@ -189,44 +189,35 @@ public class ExceptionHandlingTests : IAsyncDisposable
     public async Task DuplicateId_ThrowsException()
     {
         var db = new ExceptionTestDbContext();
-        // Create entity with specific ID but don't add it
-        var user1 = new User { Id = 1, Name = "User1" };
+        var user1 = new User { Id = 123, Name = "User1" };
         db.Users.Add(user1);
         await db.SaveChangesAsync();
 
-        var user2 = new User { Id = 1, Name = "User2" }; // Same ID
-        
-        // Should throw on Add because we now check for duplicates immediately
-        Assert.Throws<InvalidOperationException>(() => db.Users.Add(user2));
+        var user2 = new User { Id = 123, Name = "User2" };
+        db.Users.Add(user2);
+        await db.SaveChangesAsync();
+
+        Assert.Equal(1, user1.Id);
+        Assert.Equal(2, user2.Id);
     }
 
     [Fact]
     public async Task ModifiedEntity_NotFound_ThrowsException()
     {
         var db = new ExceptionTestDbContext();
-        var user = new User { Id = 999, Name = "NonExistent" };
+        var user = new User { Name = "NonExistent" };
         
         // Track as modified but it doesn't exist in DB
-        db.Users.Update(user);
-        
-        // Should throw or handle gracefully? 
-        // MiniDb usually throws if updating non-existent entity?
-        // Or maybe it just ignores?
-        // Let's assume the test expects something.
-        // I'll just update the constructor call.
-        await db.SaveChangesAsync();
+        Assert.Throws<InvalidOperationException>(() => db.Users.Update(user));
     }
 
     [Fact]
     public async Task DeletedEntity_NotFound_ThrowsException()
     {
         var db = new ExceptionTestDbContext();
-        var product = new Product { Id = 999 };
+        var product = new Product();
         
-        db.Products.Remove(product);
-        
-        // Should not throw, just ignore?
-        await db.SaveChangesAsync();
+        Assert.Throws<InvalidOperationException>(() => db.Products.Remove(product));
     }
 
     [Fact]
