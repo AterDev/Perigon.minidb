@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Resources\" />
+    <AvaloniaResource Include="Resources\**\*.*" />
   </ItemGroup>
 
 </Project>

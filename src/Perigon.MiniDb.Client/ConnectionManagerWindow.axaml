@@ -10,6 +10,7 @@
         MinWidth="760"
         MinHeight="480"
         WindowStartupLocation="CenterOwner"
+        Icon="avares://Perigon.MiniDb.Client/Resources/perigon_icon.PNG"
         Background="{DynamicResource ThemeBackgroundBrush}"
         Title="{Binding MenuManageConnections}"
         mc:Ignorable="d">

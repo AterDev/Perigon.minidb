@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Windows.Input;
 using Perigon.MiniDb;
 using Perigon.MiniDb.Client.Helpers;
@@ -44,6 +45,7 @@ public class MainViewModel : INotifyPropertyChanged
     private readonly RelayCommand _previousPageCommand;
     private readonly RelayCommand _nextPageCommand;
     private readonly RelayCommand _lastPageCommand;
+    private CancellationTokenSource? _statusResetCts;
 
     private DatabaseConnection? _selectedConnection;
     private string? _selectedTableName;
@@ -200,8 +202,11 @@ public class MainViewModel : INotifyPropertyChanged
             _statusMessage = value;
             OnPropertyChanged();
             UpdateStatusTone(value);
+            ScheduleStatusReset(value);
         }
     }
+
+    private string ReadyStatus => L("准备就绪", "Ready.");
 
     public bool IsStatusError
     {
@@ -596,7 +601,38 @@ public class MainViewModel : INotifyPropertyChanged
         BuildFilterOperatorOptions();
         ApplyConnectionFilter();
 
+        _statusMessage = ReadyStatus;
+        UpdateStatusTone(_statusMessage);
+
         SelectedConnection = _connectionService.GetMostRecentlyUsedConnection() ?? Connections.FirstOrDefault();
+    }
+
+    private async void ScheduleStatusReset(string message)
+    {
+        if (string.Equals(message, ReadyStatus, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _statusResetCts?.Cancel();
+        _statusResetCts?.Dispose();
+
+        _statusResetCts = new CancellationTokenSource();
+        var token = _statusResetCts.Token;
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (!token.IsCancellationRequested)
+        {
+            StatusMessage = ReadyStatus;
+        }
     }
 
     public void SetThemePreference(string preference)
