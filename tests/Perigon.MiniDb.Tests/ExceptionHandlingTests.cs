@@ -1,4 +1,3 @@
-using System.ComponentModel.DataAnnotations;
 using Perigon.MiniDb;
 
 namespace Perigon.MiniDb.Tests;
@@ -8,46 +7,6 @@ public class InvalidEntityWithLong : IMicroEntity
 {
     public int Id { get; set; }
     public long UnsupportedLong { get; set; }
-}
-
-public class InvalidEntityWithDouble : IMicroEntity
-{
-    public int Id { get; set; }
-    public double UnsupportedDouble { get; set; }
-}
-
-public class InvalidEntityWithFloat : IMicroEntity
-{
-    public int Id { get; set; }
-    public float UnsupportedFloat { get; set; }
-}
-
-public class InvalidEntityWithList : IMicroEntity
-{
-    public int Id { get; set; }
-    public List<string> UnsupportedList { get; set; } = [];
-}
-
-public class InvalidEntityWithByteArray : IMicroEntity
-{
-    public int Id { get; set; }
-    public byte[] UnsupportedByteArray { get; set; } = [];
-}
-
-public class InvalidEntityNoId
-{
-    public string Name { get; set; } = string.Empty;
-}
-
-public class InvalidEntityWrongIdType
-{
-    public string Id { get; set; } = string.Empty;
-}
-
-public class InvalidEntityWithStringNoMaxLength : IMicroEntity
-{
-    public int Id { get; set; }
-    public string Name { get; set; } = string.Empty; // Missing [MaxLength]
 }
 
 // Valid DbContext for unsupported type tests
@@ -167,22 +126,22 @@ public class ExceptionHandlingTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task InvalidEntity_NullRequiredProperty_ThrowsException()
+    public async Task NullStringProperty_PersistsAsEmptyString()
     {
         var db = new ExceptionTestDbContext();
-        var user = new User 
-        { 
-            Name = null!, // Invalid null
-            Email = "test@example.com" 
+        var user = new User
+        {
+            Name = null!,
+            Email = "test@example.com"
         };
 
-        // Validation happens at SaveChanges
         db.Users.Add(user);
-        
-        // Note: MiniDb might not validate [Required] by default unless implemented.
-        // Assuming the test expects failure or we just check if it throws.
-        // If User.Name is not nullable, it might throw.
-        // Checking previous code context...
+        await db.SaveChangesAsync();
+
+        await ExceptionTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        var reload = new ExceptionTestDbContext();
+        var loaded = reload.Users.First();
+        Assert.Equal(string.Empty, loaded.Name);
     }
 
     [Fact]
@@ -232,28 +191,27 @@ public class ExceptionHandlingTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task InvalidTableName_ThrowsException()
+    public async Task MissingDbSetType_ThrowsException()
     {
         var db = new ExceptionTestDbContext();
-        // Should work fine with normal table names (Users, Products)
-        // This test might be checking internal behavior or reflection?
-        // I'll just update the constructor.
+        Assert.Throws<InvalidOperationException>(() => db.Set<InvalidEntityWithLong>());
     }
 
     [Fact]
     public async Task SaveChanges_EmptyContext_DoesNothing()
     {
         var db = new ExceptionTestDbContext();
-        await db.DisposeAsync();
-        // ...
+        await db.SaveChangesAsync();
+        Assert.Empty(db.Users);
+        Assert.Empty(db.Products);
     }
 
     [Fact]
-    public async Task Initialize_Twice_IsIdempotent()
+    public async Task Context_InitializesDbSets()
     {
         var db = new ExceptionTestDbContext();
-        // Context is automatically initialized in constructor
         Assert.NotNull(db.Users);
+        Assert.NotNull(db.Products);
     }
 
     [Fact]

@@ -28,6 +28,12 @@ public enum PaymentMethod
     BankTransfer = 4
 }
 
+public enum LongBackedStatus : long
+{
+    A = 1,
+    B = 2
+}
+
 // 测试实体 - 使用 required 修饰符
 public class EntityWithRequired : IMicroEntity
 {
@@ -81,6 +87,16 @@ public class TaskEntity : IMicroEntity
     public bool IsCompleted { get; set; }
 }
 
+public class InvalidLongEnumEntity : IMicroEntity
+{
+    public int Id { get; set; }
+
+    [MaxLength(50)]
+    public string Name { get; set; } = string.Empty;
+
+    public LongBackedStatus Status { get; set; }
+}
+
 // 测试 DbContext
 public class RequiredTestContext : MiniDbContext
 {
@@ -92,6 +108,11 @@ public class EnumTestContext : MiniDbContext
 {
     public DbSet<OrderEntity> Orders { get; set; } = null!;
     public DbSet<TaskEntity> Tasks { get; set; } = null!;
+}
+
+public class InvalidLongEnumContext : MiniDbContext
+{
+    public DbSet<InvalidLongEnumEntity> Items { get; set; } = null!;
 }
 
 /// <summary>
@@ -222,6 +243,14 @@ public class EnumTypeTests : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
+        try
+        {
+            await InvalidLongEnumContext.ReleaseSharedCacheAsync(_testDbPath);
+        }
+        catch
+        {
+            // ignore cleanup failures for contexts that may never initialize
+        }
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -527,6 +556,40 @@ public class EnumTypeTests : IAsyncDisposable
 
             var highAndPending = db.Orders.Where(o => o.Priority == Priority.High && o.Status == OrderStatus.Pending).ToList();
             Assert.Single(highAndPending);
+        }
+    }
+
+    [Fact]
+    public async Task Enum_LongBackedEnum_NotSupported()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"test_long_enum_{Guid.NewGuid()}.mds");
+        MiniDbConfiguration.AddDbContext<InvalidLongEnumContext>(o => o.UseMiniDb(path));
+
+        try
+        {
+            var ex = Assert.Throws<NotSupportedException>(() =>
+            {
+                var _ = new InvalidLongEnumContext();
+            });
+
+            Assert.Contains("not supported", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Int32", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            try
+            {
+                await InvalidLongEnumContext.ReleaseSharedCacheAsync(path);
+            }
+            catch
+            {
+                // ignore cleanup failures
+            }
+
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 }

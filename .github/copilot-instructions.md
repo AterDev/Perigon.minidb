@@ -29,7 +29,7 @@ Perigon.MiniDb/
 │   │   ├── EntityMetadata.cs            # 运行时元数据（启动缓存）
 │   │   ├── MiniDbConfiguration.cs       # 全局配置和注册
 │   │   ├── MiniDbOptions.cs             # 配置选项
-│   │   └── ThreadSafetyManager.cs       # 线程安全管理
+│   │   └── (线程安全由 SharedDataCache / FileWriteQueue 协同实现)
 │   │
 │   ├── Perigon.MiniDb.Client/           # WPF 桌面客户端
 │   │   ├── ViewModels/                  # MVVM 视图模型
@@ -162,9 +162,7 @@ public bool? HasConfirmed { get; set; }        // 2 字节（1 + 1）
 public OrderStatus? PreviousStatus { get; set; } // 5 字节（4 + 1）
 ```
 
-
 ## 开发规范
-
 
 **现代 C# 特性**（.NET 10 / C# 14）：
 - ✅ File-scoped namespaces：`namespace Perigon.MiniDb;`
@@ -186,7 +184,6 @@ public OrderStatus? PreviousStatus { get; set; } // 5 字节（4 + 1）
 ## 资源链接
 
 - 📖 **完整开发文档**：`docs/项目开发文档.md`
-- 🏗️ **架构设计**：`docs/架构演进总结.md`
 - 🔧 **技术细节**：`docs/技术设计文档.md`
 - 📦 **GitHub**：https://github.com/AterDev/Perigon.minidb
 - 📝 **README**：根目录 `README.md`

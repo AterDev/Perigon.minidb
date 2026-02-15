@@ -91,6 +91,35 @@ public class ChangeTracker
         }
     }
 
+    public ChangeSnapshot CreateSnapshot()
+    {
+        lock (_syncRoot)
+        {
+            return new ChangeSnapshot([.. _added], [.. _modified], [.. _deleted]);
+        }
+    }
+
+    public void RemovePersisted(IReadOnlyList<object> added, IReadOnlyList<object> modified, IReadOnlyList<object> deleted)
+    {
+        lock (_syncRoot)
+        {
+            foreach (var entity in added)
+            {
+                _added.Remove(entity);
+            }
+
+            foreach (var entity in modified)
+            {
+                _modified.Remove(entity);
+            }
+
+            foreach (var entity in deleted)
+            {
+                _deleted.Remove(entity);
+            }
+        }
+    }
+
     public bool HasChanges
     {
         get
@@ -102,3 +131,8 @@ public class ChangeTracker
         }
     }
 }
+
+public readonly record struct ChangeSnapshot(
+    IReadOnlyList<object> Added,
+    IReadOnlyList<object> Modified,
+    IReadOnlyList<object> Deleted);

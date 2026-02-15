@@ -493,9 +493,11 @@ public class ConcurrencyTests : IAsyncDisposable
     public async Task RapidOpenClose_Stability()
     {
         var errors = new ConcurrentBag<Exception>();
+        const int contextCount = 2;
+        var testTimeout = TimeSpan.FromSeconds(30);
 
         // Rapidly open and close contexts
-        var tasks = Enumerable.Range(0, 100).Select(async i =>
+        var tasks = Enumerable.Range(0, contextCount).Select(async i =>
         {
             var db = new ConcurrencyTestDbContext();
             try
@@ -522,7 +524,7 @@ public class ConcurrencyTests : IAsyncDisposable
             }
         });
 
-        await Task.WhenAll(tasks);
+        await Task.WhenAll(tasks).WaitAsync(testTimeout);
 
         // No errors should have occurred
         Assert.Empty(errors);

@@ -95,11 +95,16 @@ public static class FieldSizeCalculator
         if (underlyingType.IsEnum)
         {
             var enumUnderlyingType = Enum.GetUnderlyingType(underlyingType);
-            if (!_typeSizes.TryGetValue(enumUnderlyingType, out int enumSize))
+            if (enumUnderlyingType == typeof(long) || enumUnderlyingType == typeof(ulong))
             {
-                // Default to 4 bytes (int) for enums if underlying type is not in cache
-                enumSize = 4;
+                throw new NotSupportedException(
+                    $"Enum property '{property.DeclaringType?.Name}.{property.Name}' uses underlying type '{enumUnderlyingType.Name}', which is not supported. " +
+                    "MiniDb stores enums as Int32; please use enum underlying types byte/short/int (or their unsigned variants within Int32 range)."
+                );
             }
+
+            // Always store enum as Int32 for consistent serialization layout.
+            const int enumSize = 4;
             return isNullable ? enumSize + 1 : enumSize;
         }
 

@@ -23,6 +23,9 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
     private static readonly ConcurrentDictionary<Type, List<Func<MiniDbContext, CancellationToken, Task>>> _loadingDelegatesCache = new();
     // Cache for table type initialization delegates
     private static readonly ConcurrentDictionary<Type, Action<MiniDbContext>> _initializationDelegatesCache = new();
+    // Cache for typed save delegates to avoid reflection in SaveChanges hot path
+    private static readonly ConcurrentDictionary<Type,
+        Func<MiniDbContext, string, IReadOnlyList<object>, IReadOnlyList<object>, IReadOnlyList<object>, CancellationToken, Task>> _saveDelegatesCache = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MiniDbContext"/> class.
@@ -155,50 +158,88 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
         await _sharedCache.EnterWriteLockAsync(cancellationToken);
         try
         {
+            var snapshot = _changeTracker.CreateSnapshot();
+            if (snapshot.Added.Count == 0 && snapshot.Modified.Count == 0 && snapshot.Deleted.Count == 0)
+            {
+                return;
+            }
+
+            var addedByType = snapshot.Added.GroupBy(e => e.GetType()).ToDictionary(g => g.Key, g => g.ToList());
+            var modifiedByType = snapshot.Modified.GroupBy(e => e.GetType()).ToDictionary(g => g.Key, g => g.ToList());
+            var deletedByType = snapshot.Deleted.GroupBy(e => e.GetType()).ToDictionary(g => g.Key, g => g.ToList());
+
             foreach (var kvp in _dbSets)
             {
                 var tableName = kvp.Key;
                 var entityType = _tableTypes[tableName];
 
                 // Get added, modified, deleted entities for this table
-                var added = _changeTracker.Added
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
-                var modified = _changeTracker.Modified
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
-                var deleted = _changeTracker.Deleted
-                    .Where(e => e.GetType() == entityType)
-                    .ToList();
+                var added = addedByType.TryGetValue(entityType, out var addedListByType)
+                    ? addedListByType
+                    : [];
+                var modified = modifiedByType.TryGetValue(entityType, out var modifiedListByType)
+                    ? modifiedListByType
+                    : [];
+                var deleted = deletedByType.TryGetValue(entityType, out var deletedListByType)
+                    ? deletedListByType
+                    : [];
 
                 if (added.Count > 0 || modified.Count > 0 || deleted.Count > 0)
                 {
-                    // Convert List<object> to List<TEntity> using reflection
-                    var listType = typeof(List<>).MakeGenericType(entityType);
-                    var addedList = Activator.CreateInstance(listType)!;
-                    var modifiedList = Activator.CreateInstance(listType)!;
-                    var deletedList = Activator.CreateInstance(listType)!;
+                    var saveDelegate = _saveDelegatesCache.GetOrAdd(entityType, static t =>
+                    {
+                        var method = typeof(MiniDbContext)
+                            .GetMethod(nameof(SaveTableChangesTypedAsync), BindingFlags.NonPublic | BindingFlags.Instance)!
+                            .MakeGenericMethod(t);
 
-                    var addMethod = listType.GetMethod("Add")!;
-                    foreach (var item in added)
-                        addMethod.Invoke(addedList, [item]);
-                    foreach (var item in modified)
-                        addMethod.Invoke(modifiedList, [item]);
-                    foreach (var item in deleted)
-                        addMethod.Invoke(deletedList, [item]);
+                        var ctxParam = Expression.Parameter(typeof(MiniDbContext), "ctx");
+                        var tableNameParam = Expression.Parameter(typeof(string), "tableName");
+                        var addedParam = Expression.Parameter(typeof(IReadOnlyList<object>), "added");
+                        var modifiedParam = Expression.Parameter(typeof(IReadOnlyList<object>), "modified");
+                        var deletedParam = Expression.Parameter(typeof(IReadOnlyList<object>), "deleted");
+                        var ctParam = Expression.Parameter(typeof(CancellationToken), "ct");
 
-                    var saveMethod = _storageManager.GetType().GetMethod(nameof(StorageManager.SaveChangesAsync))!
-                        .MakeGenericMethod(entityType);
-                    var task = (Task)saveMethod.Invoke(_storageManager, [tableName, addedList, modifiedList, deletedList, cancellationToken])!;
-                    await task.ConfigureAwait(false);
+                        var body = Expression.Call(ctxParam, method,
+                            tableNameParam, addedParam, modifiedParam, deletedParam, ctParam);
+
+                        return Expression.Lambda<Func<MiniDbContext, string, IReadOnlyList<object>, IReadOnlyList<object>, IReadOnlyList<object>, CancellationToken, Task>>(
+                            body,
+                            ctxParam,
+                            tableNameParam,
+                            addedParam,
+                            modifiedParam,
+                            deletedParam,
+                            ctParam).Compile();
+                    });
+
+                    await saveDelegate(this, tableName, added, modified, deleted, cancellationToken).ConfigureAwait(false);
+
+                    // Only clear successfully persisted changes for this table.
+                    // If a later table fails, unpersisted changes remain tracked for retry.
+                    _changeTracker.RemovePersisted(added, modified, deleted);
                 }
             }
         }
         finally
         {
-            _changeTracker.Clear();
             _sharedCache.ExitWriteLockAsync();
         }
+    }
+
+    private async Task SaveTableChangesTypedAsync<TEntity>(
+        string tableName,
+        IReadOnlyList<object> added,
+        IReadOnlyList<object> modified,
+        IReadOnlyList<object> deleted,
+        CancellationToken cancellationToken) where TEntity : class, IMicroEntity
+    {
+        var typedAdded = added.Cast<TEntity>().ToList();
+        var typedModified = modified.Cast<TEntity>().ToList();
+        var typedDeleted = deleted.Cast<TEntity>().ToList();
+
+        await _storageManager
+            .SaveChangesAsync(tableName, typedAdded, typedModified, typedDeleted, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public void Dispose()
