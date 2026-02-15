@@ -10,6 +10,8 @@ public class DatabaseConnection : INotifyPropertyChanged
 {
     private string _name = string.Empty;
     private string _path = string.Empty;
+    private DateTime? _lastConnectedAt;
+    private string? _lastConnectionError;
 
     public string Name
     {
@@ -32,6 +34,32 @@ public class DatabaseConnection : INotifyPropertyChanged
             if (_path != value)
             {
                 _path = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public DateTime? LastConnectedAt
+    {
+        get => _lastConnectedAt;
+        set
+        {
+            if (_lastConnectedAt != value)
+            {
+                _lastConnectedAt = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string? LastConnectionError
+    {
+        get => _lastConnectionError;
+        set
+        {
+            if (_lastConnectionError != value)
+            {
+                _lastConnectionError = value;
                 OnPropertyChanged();
             }
         }

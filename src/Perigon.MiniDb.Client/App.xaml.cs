@@ -1,22 +1,35 @@
 ﻿using System.IO;
-using System.Windows;
+using Avalonia;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Markup.Xaml;
 
 namespace Perigon.MiniDb.Client;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
-public partial class App : Application
+public partial class App : Avalonia.Application
 {
-    protected override async void OnStartup(StartupEventArgs e)
+    public override void Initialize()
     {
-        base.OnStartup(e);
+        AvaloniaXamlLoader.Load(this);
+    }
 
-        // Create sample database if it doesn't exist
+    public override void OnFrameworkInitializationCompleted()
+    {
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            desktop.MainWindow = new MainWindow();
+        }
+
+        EnsureSampleDatabase();
+
+        base.OnFrameworkInitializationCompleted();
+    }
+
+    private static void EnsureSampleDatabase()
+    {
         var appDataPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "Perigon.MiniDb.Sample");
-        
+
         Directory.CreateDirectory(appDataPath);
         var sampleDbPath = Path.Combine(appDataPath, "sample.mds");
 
@@ -24,12 +37,11 @@ public partial class App : Application
         {
             try
             {
-                await Sample.SampleDbContext.CreateSampleDatabaseAsync(sampleDbPath);
+                Sample.SampleDbContext.CreateSampleDatabaseAsync(sampleDbPath).GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to create sample database: {ex.Message}", "Warning", 
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Diagnostics.Debug.WriteLine($"Failed to create sample database: {ex.Message}");
             }
         }
     }

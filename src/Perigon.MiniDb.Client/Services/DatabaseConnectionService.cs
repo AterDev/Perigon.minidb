@@ -129,4 +129,11 @@ public class DatabaseConnectionService
         Connections.Remove(connection);
         SaveConnections();
     }
+
+    public DatabaseConnection? GetMostRecentlyUsedConnection()
+    {
+        return Connections
+            .OrderByDescending(c => c.LastConnectedAt ?? DateTime.MinValue)
+            .FirstOrDefault();
+    }
 }

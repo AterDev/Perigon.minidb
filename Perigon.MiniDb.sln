@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Perigon.MiniDb", "src\Perig
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Perigon.MiniDb.Tests", "tests\Perigon.MiniDb.Tests\Perigon.MiniDb.Tests.csproj", "{0FC6EC77-C807-4B65-B588-630146DDC69E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "tests\Perigon.MiniDb.Tests\Tests.csproj", "{0FC6EC77-C807-4B65-B588-630146DDC69E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5D20AA90-6969-D8BD-9DCD-8634F4692FDA}"
 EndProject

@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Perigon.MiniDb.Client.App"
+             RequestedThemeVariant="Default">
+
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light"
+                               Accent="#0A66D9"
+                               RegionColor="#F7F8FA" />
+        <ColorPaletteResources x:Key="Dark"
+                               Accent="#4C9DFF"
+                               RegionColor="#1E1F24" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+  </Application.Styles>
+</Application>

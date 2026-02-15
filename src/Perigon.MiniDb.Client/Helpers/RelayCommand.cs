@@ -16,11 +16,7 @@ public class RelayCommand : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged
-    {
-        add => CommandManager.RequerySuggested += value;
-        remove => CommandManager.RequerySuggested -= value;
-    }
+    public event EventHandler? CanExecuteChanged;
 
     public bool CanExecute(object? parameter)
     {
@@ -30,6 +26,11 @@ public class RelayCommand : ICommand
     public void Execute(object? parameter)
     {
         _execute(parameter);
+    }
+
+    public void RaiseCanExecuteChanged()
+    {
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }
 
@@ -47,11 +48,7 @@ public class RelayCommand<T> : ICommand
         _canExecute = canExecute;
     }
 
-    public event EventHandler? CanExecuteChanged
-    {
-        add => CommandManager.RequerySuggested += value;
-        remove => CommandManager.RequerySuggested -= value;
-    }
+    public event EventHandler? CanExecuteChanged;
 
     public bool CanExecute(object? parameter)
     {
@@ -61,5 +58,10 @@ public class RelayCommand<T> : ICommand
     public void Execute(object? parameter)
     {
         _execute((T?)parameter);
+    }
+
+    public void RaiseCanExecuteChanged()
+    {
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
     }
 }

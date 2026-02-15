@@ -1,177 +1,66 @@
-# Perigon MiniDB 客户端工具
+# Perigon MiniDB Client
 
-一个基于 WPF 的 Windows 桌面应用程序，用于管理和查看 Perigon MiniDB 数据库文件。
+基于 **Avalonia + .NET 10** 的轻量数据库浏览工具，用于打开 MiniDB 文件、浏览表数据、分页查看与字段筛选。
 
-## 功能特性
+## 当前能力
 
-### 数据库连接管理
-- ✅ 添加数据库连接（名称 + 路径）
-- ✅ 编辑现有连接
-- ✅ 删除连接
-- ✅ 连接配置自动保存到本地
+- 连接管理（新增/更新/删除），本地持久化保存
+- 连接选择后自动加载表列表
+- 表数据分页浏览（首页/上一页/下一页/末页）
+- 字段筛选（`Contains/Equals/NotEquals/>/>=/</<=/Between`）
+- 多条件 `AND` 组合筛选
+- 连接与表搜索
+- 主题切换（浅色/深色/跟随系统）
+- 中英文界面切换（可持久化）
+- Windows 毛玻璃效果（支持时启用，自动降级）
+- 视图偏好持久化（主题/毛玻璃）
+- 帮助菜单一键打开仓库地址与问题反馈（Issues）
 
-### 数据库操作
-- ✅ 连接到 MiniDB 数据库文件
-- ✅ 浏览数据库中的所有表
-- ✅ 查看表数据（以数据网格形式展示）
-- ✅ 编辑数据并保存更改
-- ✅ 断开数据库连接
+## Language & Help Menu
 
-### 用户界面
-- ✅ 深色主题设计（Dark Mode）
-- ✅ 适配 Windows 11 风格
-- ✅ 响应式布局
-- ✅ 状态栏显示操作状态
+- 顶部菜单 `语言 / Language` 可切换 `中文` 与 `English`
+- 语言偏好会自动保存，重启后仍生效
+- 顶部菜单 `帮助 / Help` 提供：
+	- `打开仓库地址 / Open repository`
+	- `打开问题反馈 / Open issues`
 
-### 文件锁定处理
-- ✅ 检测数据库文件是否被其他进程锁定
-- ✅ 提供友好的错误提示
-- ✅ 支持文件共享读取
+## 技术栈
 
-## 技术规格
+- **Framework**: .NET 10.0
+- **UI**: Avalonia 11
+- **Pattern**: MVVM
+- **Platform**: Windows x64（当前主要目标）
 
-- **框架**: .NET 10.0
-- **UI框架**: WPF (Windows Presentation Foundation)
-- **目标平台**: Windows 10/11 (x64)
-- **设计模式**: MVVM (Model-View-ViewModel)
-
-## 系统要求
-
-- Windows 10 版本 1809 或更高版本
-- Windows 11（推荐）
-- .NET 10.0 Runtime
-
-## 项目结构
-
-```
-Perigon.MiniDb.Client/
-├── Models/              # 数据模型
-│   ├── DatabaseConnection.cs
-│   └── TableInfo.cs
-├── ViewModels/          # 视图模型（MVVM）
-│   └── MainViewModel.cs
-├── Views/               # 视图和对话框
-│   └── ConnectionDialog.xaml
-├── Services/            # 业务服务
-│   ├── DatabaseConnectionService.cs
-│   └── DatabaseReaderService.cs
-├── Helpers/             # 辅助类
-│   └── RelayCommand.cs
-├── Sample/              # 示例数据库
-│   └── SampleDbContext.cs
-├── MainWindow.xaml      # 主窗口
-└── App.xaml            # 应用程序入口
-```
-
-## 使用指南
-
-### 1. 创建示例数据库
-
-首次启动时，应用程序会在 `Documents\Perigon.MiniDb.Sample` 目录下自动创建一个示例数据库。
-
-您也可以通过菜单 `File -> Create Sample Database` 手动创建示例数据库。
-
-### 2. 添加数据库连接
-
-1. 点击工具栏的 `➕ Add Connection` 按钮
-2. 输入连接名称
-3. 浏览并选择数据库文件（.mds）
-4. 点击 OK 保存
-
-### 3. 连接到数据库
-
-1. 在左侧面板的"Connections"列表中选择一个连接
-2. 点击工具栏的 `🔌 Connect` 按钮
-3. 连接成功后，表列表会显示在左下方
-
-### 4. 查看和编辑数据
-
-1. 在"Tables"列表中选择要查看的表
-2. 表数据将在右侧的数据网格中显示
-3. 双击单元格即可编辑数据
-4. 编辑完成后，点击 `💾 Save Changes` 保存修改
-
-### 5. 断开连接
-
-点击工具栏的 `⛔ Disconnect` 按钮断开当前连接。
-
-## 技术说明
-
-### 内存操作模式
-
-Perigon MiniDB 采用全内存操作模式：
-- 连接数据库时，所有数据会加载到内存
-- 后续的查询和操作都在内存中进行（性能极快）
-- 修改和删除通过类库方法同步到文件
-
-### 文件锁定处理
-
-- 当程序和管理客户端同时访问数据库时，文件可能被锁定
-- 系统会检测文件锁定状态
-- 如果文件被锁定，会提示用户稍后重试
-- 支持文件共享读取模式
-
-### 数据保存机制
-
-- 所有修改先在内存中进行
-- 点击 `Save Changes` 后才会写入文件
-- 使用增量写入机制，只更新修改的记录
-
-## 限制说明
-
-### 当前版本限制
-
-1. **数据库类型识别**: 
-   - 当前版本使用预定义的 DbContext（SampleDbContext）
-   - 只能查看包含 Products 和 Categories 表的数据库
-   - 后续版本将支持动态加载任意数据库结构
-
-2. **数据验证**:
-   - 基本的数据类型验证
-   - 不支持复杂的业务规则验证
-
-3. **并发控制**:
-   - 不支持多用户同时编辑
-   - 文件锁定时需要等待其他进程释放
-
-## 开发说明
-
-### 构建项目
+## 运行方式
 
 ```bash
-# 构建项目
 dotnet build src/Perigon.MiniDb.Client/Perigon.MiniDb.Client.csproj
-
-# 运行项目
 dotnet run --project src/Perigon.MiniDb.Client/Perigon.MiniDb.Client.csproj
 ```
 
-### 添加新功能
+## 目录概览
 
-1. **添加新的数据库实体**:
-   - 在 `Sample/` 目录下定义实体类
-   - 实现 `IMicroEntity` 接口
-   - 在 `SampleDbContext` 中添加 `DbSet<T>` 属性
+- `MainWindow.axaml` / `MainWindow.xaml.cs`：主界面与交互
+- `ViewModels/MainViewModel.cs`：连接、表加载、分页、筛选、状态管理
+- `Services/DatabaseConnectionService.cs`：连接持久化
+- `Services/ClientSettingsService.cs`：视图偏好持久化
+- `Models/DatabaseConnection.cs`：连接模型
+- `Models/FilterCondition.cs`：筛选条件模型
+- `Sample/SampleDbContext.cs`：示例数据上下文
 
-2. **扩展 UI 功能**:
-   - 在 `ViewModels/` 中添加新的 ViewModel
-   - 在 `Views/` 中创建对应的 XAML 视图
-   - 使用 `RelayCommand` 处理用户交互
+## 已知限制
 
-## 后续计划
+- 当前采用已知 `DbContext` 模式（`SampleDbContext`）读取数据
+- 不支持任意未知结构 `.mds` 的动态 schema 浏览
+- 主要定位为单机轻量浏览工具，不面向多用户并发编辑
 
-- [ ] 支持动态加载任意数据库结构
-- [ ] 添加数据导入/导出功能
-- [ ] 支持数据搜索和过滤
-- [ ] 添加数据库压缩工具
-- [ ] 支持主题切换（亮色主题）
-- [ ] 添加更多数据编辑工具（批量编辑、复制粘贴等）
+## 快速自测清单（发布前）
 
-## 许可证
-
-MIT License - 参见根目录的 LICENSE 文件
-
-## 联系方式
-
-- 项目主页: https://github.com/AterDev/Perigon.minidb
-- 问题反馈: https://github.com/AterDev/Perigon.minidb/issues
+- [ ] 添加连接并重启应用，连接仍存在
+- [ ] 连接后可看到表列表，切换表可加载数据
+- [ ] 分页按钮（首页/上一页/下一页/末页）行为正确
+- [ ] 添加多个筛选条件（AND）后查询结果正确
+- [ ] 点击已有筛选条件可回填到编辑区
+- [ ] 语言切换后界面主要文案和筛选操作符显示正确
+- [ ] 帮助菜单可正常打开仓库与 issues 页面
+- [ ] Win11 下毛玻璃生效；不支持环境自动降级且可正常使用
