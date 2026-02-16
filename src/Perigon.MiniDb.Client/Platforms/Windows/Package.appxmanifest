@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity Name="Perigon.MiniDb.Client"
+            Publisher="CN=Perigon"
+            Version="1.0.0.0" />
+
+  <Properties>
+    <DisplayName>Perigon MiniDB Client</DisplayName>
+    <PublisherDisplayName>Perigon</PublisherDisplayName>
+    <Logo>Resources\perigon_icon.PNG</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Applications>
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="$targetentrypoint$">
+      <uap:VisualElements DisplayName="Perigon MiniDB Client"
+                          Description="Perigon MiniDB Client"
+                          BackgroundColor="transparent"
+                          Square150x150Logo="Resources\perigon_icon.PNG"
+                          Square44x44Logo="Resources\perigon_icon.PNG">
+        <uap:DefaultTile Wide310x150Logo="Resources\perigon_icon.PNG" />
+        <uap:SplashScreen Image="Resources\perigon_icon.PNG" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+
+</Package>

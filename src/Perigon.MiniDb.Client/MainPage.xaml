@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Perigon.MiniDb.Client"
+             xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.WebView.Maui;assembly=Microsoft.AspNetCore.Components.WebView.Maui"
+             x:Class="Perigon.MiniDb.Client.MainPage"
+             Title="">
+
+    <ContentPage.MenuBarItems>
+        <MenuBarItem x:Name="ConnectionMenu"
+                Text="Connection">
+            <MenuFlyoutItem x:Name="ManageConnectionsMenuItem"
+                    Text="Manage Connections"
+                    Clicked="ManageConnections_Clicked"/>
+            <MenuFlyoutItem x:Name="DisconnectMenuItem"
+                    Text="Disconnect"
+                    Clicked="Disconnect_Clicked"/>
+            <MenuFlyoutItem x:Name="RefreshTableMenuItem"
+                    Text="Refresh Table"
+                    Clicked="RefreshTable_Clicked"/>
+        </MenuBarItem>
+        <MenuBarItem x:Name="SettingsMenu"
+                Text="Settings">
+            <MenuFlyoutSubItem x:Name="ThemeSubMenu"
+                    Text="Theme">
+                <MenuFlyoutItem x:Name="ThemeSystemMenuItem"
+                        Text="System"
+                        Clicked="ThemeSystem_Clicked"/>
+                <MenuFlyoutItem x:Name="ThemeLightMenuItem"
+                        Text="Light"
+                        Clicked="ThemeLight_Clicked"/>
+                <MenuFlyoutItem x:Name="ThemeDarkMenuItem"
+                        Text="Dark"
+                        Clicked="ThemeDark_Clicked"/>
+            </MenuFlyoutSubItem>
+            <MenuFlyoutSubItem x:Name="LanguageSubMenu"
+                    Text="Language">
+                <MenuFlyoutItem x:Name="LanguageZhMenuItem"
+                        Text="中文"
+                        Clicked="LanguageZh_Clicked"/>
+                <MenuFlyoutItem x:Name="LanguageEnMenuItem"
+                        Text="English"
+                        Clicked="LanguageEn_Clicked"/>
+            </MenuFlyoutSubItem>
+        </MenuBarItem>
+    </ContentPage.MenuBarItems>
+
+    <blazor:BlazorWebView HostPage="wwwroot/index.html">
+        <blazor:BlazorWebView.RootComponents>
+            <blazor:RootComponent Selector="#app"
+                    ComponentType="{x:Type local:AppHost}"/>
+        </blazor:BlazorWebView.RootComponents>
+    </blazor:BlazorWebView>
+</ContentPage>

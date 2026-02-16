@@ -8,7 +8,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Input;
-using Perigon.MiniDb;
 using Perigon.MiniDb.Client.Helpers;
 using Perigon.MiniDb.Client.Models;
 using Perigon.MiniDb.Client.Services;
@@ -17,20 +16,14 @@ namespace Perigon.MiniDb.Client.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
-    private static readonly string[] _filterOperatorKeys =
-    [
-        "Contains",
-        "Equals",
-        "NotEquals",
-        "GreaterThan",
-        "GreaterOrEqual",
-        "LessThan",
-        "LessOrEqual",
-        "Between"
-    ];
-
     private readonly DatabaseConnectionService _connectionService;
     private readonly ClientSettingsService _settingsService;
+    private readonly ConnectionSessionService _connectionSessionService;
+    private readonly EntityQueryService _entityQueryService;
+    private readonly CollectionFilterService _collectionFilterService;
+    private readonly LocalizationService _localizationService;
+    private readonly StatusToneService _statusToneService;
+    private readonly FilterConditionService _filterConditionService;
     private readonly RelayCommand _addConnectionCommand;
     private readonly RelayCommand _editConnectionCommand;
     private readonly RelayCommand _deleteConnectionCommand;
@@ -51,7 +44,6 @@ public class MainViewModel : INotifyPropertyChanged
     private string? _selectedTableName;
     private string _connectionSearchText = string.Empty;
     private string _tableSearchText = string.Empty;
-    private MiniDbContext? _currentContext;
     private bool _isConnected;
     private string _statusMessage = "准备就绪";
     private bool _isStatusError;
@@ -62,9 +54,9 @@ public class MainViewModel : INotifyPropertyChanged
     private string _newConnectionPath = string.Empty;
     private bool _isGlassEffectEnabled = true;
     private string _themePreference = "System";
+    private string _developerDiagnostics = string.Empty;
+    private readonly bool _isDeveloperDiagnosticsEnabled = IsDeveloperDiagnosticsEnabledByDefault();
 
-    private Type? _currentEntityType;
-    private List<PropertyInfo> _entityProperties = [];
     private List<string> _allTableNames = [];
     private List<object> _allTableEntities = [];
     private List<object> _filteredEntities = [];
@@ -74,6 +66,7 @@ public class MainViewModel : INotifyPropertyChanged
     private FilterOperatorOption? _selectedFilterOperatorOption;
     private string _filterValue = string.Empty;
     private string _filterValueTo = string.Empty;
+    private string _quickFilterText = string.Empty;
     private FilterCondition? _selectedFilterCondition;
 
     private int _pageSize = 25;
@@ -421,6 +414,21 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string QuickFilterText
+    {
+        get => _quickFilterText;
+        set
+        {
+            if (_quickFilterText == value)
+            {
+                return;
+            }
+
+            _quickFilterText = value;
+            OnPropertyChanged();
+        }
+    }
+
     public FilterCondition? SelectedFilterCondition
     {
         get => _selectedFilterCondition;
@@ -514,8 +522,8 @@ public class MainViewModel : INotifyPropertyChanged
     public string MenuLanguage => L("语言", "Language");
     public string MenuLangZh => "中文";
     public string MenuLangEn => "English";
-    public bool IsChinese => !LanguagePreference.StartsWith("en", StringComparison.OrdinalIgnoreCase);
-    public bool IsEnglish => LanguagePreference.StartsWith("en", StringComparison.OrdinalIgnoreCase);
+    public bool IsChinese => !_localizationService.IsEnglish(LanguagePreference);
+    public bool IsEnglish => _localizationService.IsEnglish(LanguagePreference);
     public string SectionConnectionConfig => L("连接配置", "Connection Config");
     public string SectionSessionActions => L("会话操作", "Session Actions");
     public string SectionAppearance => L("外观", "Appearance");
@@ -531,6 +539,7 @@ public class MainViewModel : INotifyPropertyChanged
     public string LabelSearchTableWatermark => L("搜索表", "Search tables");
     public string LabelFilterValueWatermark => L("筛选值", "Filter value");
     public string LabelFilterValueToWatermark => L("区间上限(仅Between)", "Upper bound (Between)");
+    public string LabelGridFilterWatermark => L("输入关键字（匹配整行）", "Type keyword (match entire row)");
     public string BtnBrowse => L("浏览文件", "Browse");
     public string BtnAdd => L("添加", "Add");
     public string BtnUpdate => L("更新", "Update");
@@ -553,6 +562,21 @@ public class MainViewModel : INotifyPropertyChanged
     public string BtnLastPage => L("末页", "Last");
     public string ToggleGlass => L("启用毛玻璃", "Enable glass effect");
     public string LabelNoConnection => L("请先在“连接 > 管理连接”中打开数据库", "Open a database from Connection > Manage connections first");
+    public bool IsDeveloperDiagnosticsEnabled => _isDeveloperDiagnosticsEnabled;
+    public string DeveloperDiagnostics
+    {
+        get => _developerDiagnostics;
+        private set
+        {
+            if (_developerDiagnostics == value)
+            {
+                return;
+            }
+
+            _developerDiagnostics = value;
+            OnPropertyChanged();
+        }
+    }
 
     public ICommand AddConnectionCommand => _addConnectionCommand;
     public ICommand EditConnectionCommand => _editConnectionCommand;
@@ -570,9 +594,28 @@ public class MainViewModel : INotifyPropertyChanged
     public ICommand LastPageCommand => _lastPageCommand;
 
     public MainViewModel()
+        : this(new DatabaseConnectionService(), new ClientSettingsService(), new ConnectionSessionService(), new EntityQueryService(), new CollectionFilterService(), new LocalizationService(), new StatusToneService(), new FilterConditionService(new LocalizationService()))
     {
-        _connectionService = new DatabaseConnectionService();
-        _settingsService = new ClientSettingsService();
+    }
+
+    public MainViewModel(
+        DatabaseConnectionService connectionService,
+        ClientSettingsService settingsService,
+        ConnectionSessionService connectionSessionService,
+        EntityQueryService entityQueryService,
+        CollectionFilterService collectionFilterService,
+        LocalizationService localizationService,
+        StatusToneService statusToneService,
+        FilterConditionService filterConditionService)
+    {
+        _connectionService = connectionService;
+        _settingsService = settingsService;
+        _connectionSessionService = connectionSessionService;
+        _entityQueryService = entityQueryService;
+        _collectionFilterService = collectionFilterService;
+        _localizationService = localizationService;
+        _statusToneService = statusToneService;
+        _filterConditionService = filterConditionService;
 
         var settings = _settingsService.Load();
         _themePreference = settings.ThemePreference;
@@ -648,6 +691,7 @@ public class MainViewModel : INotifyPropertyChanged
     public void SetLanguagePreference(string preference)
     {
         LanguagePreference = preference;
+        UpdateDeveloperDiagnostics(SelectedTableName);
         StatusMessage = L("语言已切换", "Language changed");
     }
 
@@ -669,6 +713,7 @@ public class MainViewModel : INotifyPropertyChanged
         LanguagePreference = "zh-CN";
         ConnectionSearchText = string.Empty;
         TableSearchText = string.Empty;
+        QuickFilterText = string.Empty;
         PageSize = 25;
     }
 
@@ -773,57 +818,60 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        try
+        var result = _connectionSessionService.OpenConnection(SelectedConnection);
+        if (!result.IsSuccess)
         {
-            var dbPath = Path.GetFullPath(SelectedConnection.Path);
-            if (!File.Exists(dbPath))
+            if (result.IsFileNotFound)
             {
                 SelectedConnection.LastConnectionError = L("数据库文件不存在。", "Database file not found.");
                 _connectionService.SaveConnections();
-                StatusMessage = L($"数据库文件不存在：{dbPath}", $"Database file not found: {dbPath}");
+                var missingPath = result.DatabasePath ?? SelectedConnection.Path;
+                StatusMessage = L($"数据库文件不存在：{missingPath}", $"Database file not found: {missingPath}");
+                UpdateDeveloperDiagnostics(SelectedTableName);
                 return;
             }
 
-            MiniDbConfiguration.AddDbContext<Sample.SampleDbContext>(o => o.UseMiniDb(dbPath));
-            _currentContext?.Dispose();
-            _currentContext = new Sample.SampleDbContext();
+            if (result.ErrorKind is ConnectionOpenErrorKind.InvalidDatabaseFile or ConnectionOpenErrorKind.UnsupportedVersion)
+            {
+                var errorText = result.ErrorKind switch
+                {
+                    ConnectionOpenErrorKind.UnsupportedVersion => L("数据库文件版本不受支持。", "Unsupported database file version."),
+                    _ => L("不是有效的数据库文件。", "Not a valid database file.")
+                };
 
-            IsConnected = true;
-            SelectedConnection.LastConnectedAt = DateTime.Now;
-            SelectedConnection.LastConnectionError = null;
-            _connectionService.SaveConnections();
+                SelectedConnection.LastConnectionError = errorText;
+                _connectionService.SaveConnections();
+                IsConnected = false;
+                StatusMessage = errorText;
+                UpdateDeveloperDiagnostics(SelectedTableName);
+                return;
+            }
 
-            LoadTableNames();
-            StatusMessage = L($"已连接：{SelectedConnection.Name}", $"Connected: {SelectedConnection.Name}");
-        }
-        catch (Exception ex)
-        {
-            SelectedConnection.LastConnectionError = ex.Message;
+            SelectedConnection.LastConnectionError = result.ErrorMessage ?? L("未知错误", "Unknown error");
             _connectionService.SaveConnections();
-            StatusMessage = L($"连接失败：{ex.Message}", $"Connection failed: {ex.Message}");
-            _currentContext?.Dispose();
-            _currentContext = null;
             IsConnected = false;
+            StatusMessage = L($"连接失败：{SelectedConnection.LastConnectionError}", $"Connection failed: {SelectedConnection.LastConnectionError}");
+            UpdateDeveloperDiagnostics(SelectedTableName);
+            return;
         }
+
+        IsConnected = true;
+        SelectedConnection.LastConnectedAt = DateTime.Now;
+        SelectedConnection.LastConnectionError = null;
+        _connectionService.SaveConnections();
+
+        LoadTableNames(result.TableNames);
+        UpdateDeveloperDiagnostics(SelectedTableName);
+        StatusMessage = L($"已连接：{SelectedConnection.Name}", $"Connected: {SelectedConnection.Name}");
     }
 
     private void Disconnect()
     {
-        var lastPath = SelectedConnection?.Path;
+        var releaseError = _connectionSessionService.CloseConnection();
 
-        _currentContext?.Dispose();
-        _currentContext = null;
-
-        if (!string.IsNullOrWhiteSpace(lastPath))
+        if (!string.IsNullOrWhiteSpace(releaseError))
         {
-            try
-            {
-                MiniDbContext.ReleaseSharedCache(lastPath);
-            }
-            catch (Exception ex)
-            {
-                StatusMessage = L($"释放共享缓存失败：{ex.Message}", $"Failed to release shared cache: {ex.Message}");
-            }
+            StatusMessage = L($"释放共享缓存失败：{releaseError}", $"Failed to release shared cache: {releaseError}");
         }
 
         TableNames.Clear();
@@ -833,12 +881,11 @@ public class MainViewModel : INotifyPropertyChanged
         PagedItems.Clear();
         _allTableEntities.Clear();
         _filteredEntities.Clear();
-        _entityProperties = [];
-        _currentEntityType = null;
 
         SelectedTableName = null;
         SelectedFilterCondition = null;
         IsConnected = false;
+        UpdateDeveloperDiagnostics(null);
         StatusMessage = L("已断开连接。", "Disconnected.");
 
         OnPropertyChanged(nameof(HasData));
@@ -849,20 +896,9 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(RawCount));
     }
 
-    private void LoadTableNames()
+    private void LoadTableNames(IReadOnlyList<string> tableNames)
     {
-        if (_currentContext is null)
-        {
-            return;
-        }
-
-        var dbSetProperties = _currentContext.GetType()
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsGenericType && p.PropertyType.GetGenericTypeDefinition() == typeof(DbSet<>))
-            .OrderBy(p => p.Name)
-            .ToList();
-
-        _allTableNames = dbSetProperties.Select(p => p.Name).ToList();
+        _allTableNames = [.. tableNames];
         ApplyTableFilter();
 
         SelectedTableName = TableNames.FirstOrDefault();
@@ -870,7 +906,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void LoadTableData()
     {
-        if (_currentContext is null || string.IsNullOrWhiteSpace(SelectedTableName))
+        if (!IsConnected || string.IsNullOrWhiteSpace(SelectedTableName))
         {
             PagedItems.Clear();
             return;
@@ -878,46 +914,25 @@ public class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            var property = _currentContext.GetType().GetProperty(SelectedTableName);
-            if (property is null)
-            {
-                StatusMessage = L($"找不到表：{SelectedTableName}", $"Table not found: {SelectedTableName}");
-                return;
-            }
-
-            var dbSet = property.GetValue(_currentContext) as IEnumerable;
-            if (dbSet is null)
-            {
-                StatusMessage = L($"读取表数据失败：{SelectedTableName}", $"Failed to read table data: {SelectedTableName}");
-                return;
-            }
-
-            _currentEntityType = property.PropertyType.GetGenericArguments()[0];
-            _entityProperties = _currentEntityType
-                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.CanRead)
-                .ToList();
-
-            _allTableEntities = dbSet.Cast<object>().ToList();
+            var rows = _connectionSessionService.ReadTableRows(SelectedTableName);
+            _allTableEntities = rows.Cast<object>().ToList();
             _filteredEntities = [.. _allTableEntities];
 
             FilterFields.Clear();
-            foreach (var propertyInfo in _entityProperties)
-            {
-                FilterFields.Add(propertyInfo.Name);
-            }
-
-            SelectedFilterField = FilterFields.FirstOrDefault();
+            SelectedFilterField = null;
             FilterConditions.Clear();
             SelectedFilterCondition = null;
+            QuickFilterText = string.Empty;
             PageIndex = 1;
             ApplyPagination();
 
+            UpdateDeveloperDiagnostics(SelectedTableName);
             StatusMessage = L($"已加载 '{SelectedTableName}'，共 {_allTableEntities.Count} 条记录。", $"Loaded '{SelectedTableName}' with {_allTableEntities.Count} records.");
             OnPropertyChanged(nameof(RawCount));
         }
         catch (Exception ex)
         {
+            UpdateDeveloperDiagnostics(SelectedTableName);
             StatusMessage = L($"加载表数据失败：{ex.Message}", $"Failed to load table data: {ex.Message}");
         }
     }
@@ -929,21 +944,19 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var activeConditions = GetActiveConditions();
-        if (activeConditions.Count == 0)
+        var keyword = QuickFilterText.Trim();
+        if (string.IsNullOrWhiteSpace(keyword))
         {
             _filteredEntities = [.. _allTableEntities];
             PageIndex = 1;
             ApplyPagination();
-            StatusMessage = L("未设置筛选条件，已显示全部数据。", "No filter conditions set. Showing all data.");
+            StatusMessage = L("未设置筛选关键字，已显示全部数据。", "No filter keyword set. Showing all data.");
             return;
         }
 
         try
         {
-            _filteredEntities = _allTableEntities
-                .Where(entity => activeConditions.All(condition => EvaluateEntity(entity, condition)))
-                .ToList();
+            _filteredEntities = _entityQueryService.ApplyQuickFilter(_allTableEntities, keyword);
 
             PageIndex = 1;
             ApplyPagination();
@@ -957,6 +970,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void ClearFilter()
     {
+        QuickFilterText = string.Empty;
         FilterValue = string.Empty;
         FilterValueTo = string.Empty;
         FilterConditions.Clear();
@@ -976,14 +990,12 @@ public class MainViewModel : INotifyPropertyChanged
             return;
         }
 
-        var condition = new FilterCondition
-        {
-            Field = SelectedFilterField,
-            Operator = SelectedFilterOperator,
-            OperatorDisplay = GetOperatorDisplay(SelectedFilterOperator),
-            Value = FilterValue,
-            ValueTo = FilterValueTo
-        };
+        var condition = _filterConditionService.CreateCondition(
+            SelectedFilterField,
+            SelectedFilterOperator,
+            FilterValue,
+            FilterValueTo,
+            LanguagePreference);
 
         FilterConditions.Add(condition);
         SelectedFilterCondition = condition;
@@ -1007,220 +1019,27 @@ public class MainViewModel : INotifyPropertyChanged
 
     private List<FilterCondition> GetActiveConditions()
     {
-        var conditions = FilterConditions.ToList();
-
-        if (!string.IsNullOrWhiteSpace(SelectedFilterField) &&
-            !string.IsNullOrWhiteSpace(FilterValue) &&
-            !conditions.Any(c =>
-                c.Field == SelectedFilterField &&
-                c.Operator == SelectedFilterOperator &&
-                c.Value == FilterValue &&
-                c.ValueTo == FilterValueTo))
-        {
-            conditions.Add(new FilterCondition
-            {
-                Field = SelectedFilterField,
-                Operator = SelectedFilterOperator,
-                OperatorDisplay = GetOperatorDisplay(SelectedFilterOperator),
-                Value = FilterValue,
-                ValueTo = FilterValueTo
-            });
-        }
-
-        return conditions
-            .Where(c => !string.IsNullOrWhiteSpace(c.Field))
-            .ToList();
-    }
-
-    private bool EvaluateEntity(object entity, FilterCondition condition)
-    {
-        var property = _entityProperties.FirstOrDefault(p => p.Name == condition.Field);
-        if (property is null)
-        {
-            return false;
-        }
-
-        var value = property.GetValue(entity);
-        var effectiveType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
-
-        if (condition.Operator == "Contains")
-        {
-            var text = value?.ToString() ?? string.Empty;
-            return text.Contains(condition.Value ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (!TryConvertFromString(condition.Value, effectiveType, out var convertedValue))
-        {
-            throw new InvalidOperationException($"筛选值 '{condition.Value}' 无法转换为 {effectiveType.Name}。");
-        }
-
-        if (condition.Operator == "Between")
-        {
-            if (!TryConvertFromString(condition.ValueTo, effectiveType, out var upperBound))
-            {
-                throw new InvalidOperationException($"筛选上限 '{condition.ValueTo}' 无法转换为 {effectiveType.Name}。");
-            }
-
-            return Compare(value, convertedValue, effectiveType) >= 0
-                   && Compare(value, upperBound, effectiveType) <= 0;
-        }
-
-        return condition.Operator switch
-        {
-            "Equals" => Compare(value, convertedValue, effectiveType) == 0,
-            "NotEquals" => Compare(value, convertedValue, effectiveType) != 0,
-            "GreaterThan" => Compare(value, convertedValue, effectiveType) > 0,
-            "GreaterOrEqual" => Compare(value, convertedValue, effectiveType) >= 0,
-            "LessThan" => Compare(value, convertedValue, effectiveType) < 0,
-            "LessOrEqual" => Compare(value, convertedValue, effectiveType) <= 0,
-            _ => false
-        };
-    }
-
-    private static int Compare(object? left, object? right, Type type)
-    {
-        if (left is null && right is null)
-        {
-            return 0;
-        }
-
-        if (left is null)
-        {
-            return -1;
-        }
-
-        if (right is null)
-        {
-            return 1;
-        }
-
-        if (type.IsEnum)
-        {
-            var leftValue = Convert.ToInt64(left, CultureInfo.InvariantCulture);
-            var rightValue = Convert.ToInt64(right, CultureInfo.InvariantCulture);
-            return leftValue.CompareTo(rightValue);
-        }
-
-        if (left is IComparable comparable)
-        {
-            return comparable.CompareTo(right);
-        }
-
-        return string.Compare(left.ToString(), right.ToString(), StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool TryConvertFromString(string input, Type targetType, out object? value)
-    {
-        value = null;
-
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            if (Nullable.GetUnderlyingType(targetType) is not null || !targetType.IsValueType)
-            {
-                value = null;
-                return true;
-            }
-
-            return false;
-        }
-
-        var effectiveType = Nullable.GetUnderlyingType(targetType) ?? targetType;
-
-        try
-        {
-            if (effectiveType == typeof(string))
-            {
-                value = input;
-                return true;
-            }
-
-            if (effectiveType == typeof(DateTime))
-            {
-                if (DateTime.TryParse(input, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out var dateTime))
-                {
-                    value = dateTime;
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (effectiveType == typeof(Guid))
-            {
-                if (Guid.TryParse(input, out var guid))
-                {
-                    value = guid;
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (effectiveType == typeof(bool))
-            {
-                if (bool.TryParse(input, out var boolValue))
-                {
-                    value = boolValue;
-                    return true;
-                }
-
-                return false;
-            }
-
-            if (effectiveType.IsEnum)
-            {
-                value = Enum.Parse(effectiveType, input, ignoreCase: true);
-                return true;
-            }
-
-            value = Convert.ChangeType(input, effectiveType, CultureInfo.InvariantCulture);
-            return true;
-        }
-        catch
-        {
-            value = null;
-            return false;
-        }
+        return _filterConditionService.GetActiveConditions(
+            FilterConditions,
+            SelectedFilterField,
+            SelectedFilterOperator,
+            FilterValue,
+            FilterValueTo,
+            LanguagePreference);
     }
 
     private void ApplyPagination()
     {
-        if (_filteredEntities.Count == 0)
-        {
-            PagedItems.Clear();
-            OnPropertyChanged(nameof(TotalCount));
-            OnPropertyChanged(nameof(RawCount));
-            OnPropertyChanged(nameof(TotalPages));
-            OnPropertyChanged(nameof(PageSummary));
-            OnPropertyChanged(nameof(FilterSummary));
-            OnPropertyChanged(nameof(HasData));
-            OnPropertyChanged(nameof(HasNoData));
-            OnPropertyChanged(nameof(EmptyStateMessage));
-            RaiseCommandStates();
-            return;
-        }
-
-        if (PageIndex > TotalPages)
-        {
-            PageIndex = TotalPages;
-        }
-
-        if (PageIndex < 1)
-        {
-            PageIndex = 1;
-        }
-
-        var items = _filteredEntities
-            .Skip((PageIndex - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
+        var pagination = _entityQueryService.Paginate(_filteredEntities, PageIndex, PageSize);
+        PageIndex = pagination.PageIndex;
 
         PagedItems.Clear();
-        foreach (var item in items)
+        foreach (var item in pagination.Items)
         {
             PagedItems.Add(item);
         }
 
+        OnPropertyChanged(nameof(PagedItems));
         OnPropertyChanged(nameof(TotalCount));
         OnPropertyChanged(nameof(RawCount));
         OnPropertyChanged(nameof(TotalPages));
@@ -1324,7 +1143,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private string L(string zh, string en)
     {
-        return LanguagePreference.StartsWith("en", StringComparison.OrdinalIgnoreCase) ? en : zh;
+        return _localizationService.Localize(LanguagePreference, zh, en);
     }
 
     private void RaiseLocalizationChanged()
@@ -1363,6 +1182,7 @@ public class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(LabelSearchTableWatermark));
         OnPropertyChanged(nameof(LabelFilterValueWatermark));
         OnPropertyChanged(nameof(LabelFilterValueToWatermark));
+        OnPropertyChanged(nameof(LabelGridFilterWatermark));
         OnPropertyChanged(nameof(BtnBrowse));
         OnPropertyChanged(nameof(BtnAdd));
         OnPropertyChanged(nameof(BtnUpdate));
@@ -1398,129 +1218,100 @@ public class MainViewModel : INotifyPropertyChanged
         var currentKey = SelectedFilterOperator;
 
         FilterOperators.Clear();
-        foreach (var key in _filterOperatorKeys)
+        foreach (var option in _filterConditionService.BuildOperatorOptions(LanguagePreference, currentKey))
         {
-            FilterOperators.Add(new FilterOperatorOption
-            {
-                Key = key,
-                Display = GetOperatorDisplay(key)
-            });
+            FilterOperators.Add(option);
         }
 
         SelectedFilterOperatorOption = FilterOperators.FirstOrDefault(option => option.Key == currentKey)
                                      ?? FilterOperators.FirstOrDefault();
     }
 
-    private string GetOperatorDisplay(string key)
-    {
-        return key switch
-        {
-            "Contains" => L("包含", "Contains"),
-            "Equals" => L("等于", "Equals"),
-            "NotEquals" => L("不等于", "Not equals"),
-            "GreaterThan" => L("大于", "Greater than"),
-            "GreaterOrEqual" => L("大于等于", "Greater or equal"),
-            "LessThan" => L("小于", "Less than"),
-            "LessOrEqual" => L("小于等于", "Less or equal"),
-            "Between" => L("区间", "Between"),
-            _ => key
-        };
-    }
-
     private void RefreshConditionOperatorDisplay()
     {
-        foreach (var condition in FilterConditions)
-        {
-            condition.OperatorDisplay = GetOperatorDisplay(condition.Operator);
-        }
+        _filterConditionService.RefreshConditionOperatorDisplay(FilterConditions, LanguagePreference);
     }
 
     private void ApplyConnectionFilter()
     {
-        var selected = SelectedConnection;
-
-        var filtered = _connectionService.Connections
-            .Where(connection => string.IsNullOrWhiteSpace(ConnectionSearchText)
-                || connection.Name.Contains(ConnectionSearchText, StringComparison.OrdinalIgnoreCase)
-                || connection.Path.Contains(ConnectionSearchText, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var result = _collectionFilterService.FilterConnections(
+            _connectionService.Connections,
+            ConnectionSearchText,
+            SelectedConnection,
+            IsConnected);
 
         Connections.Clear();
-        foreach (var connection in filtered)
+        foreach (var connection in result.FilteredConnections)
         {
             Connections.Add(connection);
         }
 
-        if (selected is not null && Connections.Contains(selected))
+        if (!ReferenceEquals(SelectedConnection, result.ResolvedSelection))
         {
-            SelectedConnection = selected;
-        }
-        else if (!IsConnected && SelectedConnection is not null && !Connections.Contains(SelectedConnection))
-        {
-            SelectedConnection = Connections.FirstOrDefault();
-        }
-        else if (!IsConnected && SelectedConnection is null)
-        {
-            SelectedConnection = Connections.FirstOrDefault();
+            SelectedConnection = result.ResolvedSelection;
         }
     }
 
     private void ApplyTableFilter()
     {
-        var selected = SelectedTableName;
-
-        var filtered = _allTableNames
-            .Where(name => string.IsNullOrWhiteSpace(TableSearchText)
-                || name.Contains(TableSearchText, StringComparison.OrdinalIgnoreCase))
-            .ToList();
+        var result = _collectionFilterService.FilterTableNames(
+            _allTableNames,
+            TableSearchText,
+            SelectedTableName);
 
         TableNames.Clear();
-        foreach (var table in filtered)
+        foreach (var table in result.FilteredTableNames)
         {
             TableNames.Add(table);
         }
 
-        if (!string.IsNullOrWhiteSpace(selected) && TableNames.Contains(selected))
+        OnPropertyChanged(nameof(TableNames));
+        OnPropertyChanged(nameof(TableCount));
+
+        if (SelectedTableName != result.ResolvedSelection)
         {
-            SelectedTableName = selected;
-        }
-        else if (!string.IsNullOrWhiteSpace(SelectedTableName) && !TableNames.Contains(SelectedTableName))
-        {
-            SelectedTableName = TableNames.FirstOrDefault();
+            SelectedTableName = result.ResolvedSelection;
         }
     }
 
     private void UpdateStatusTone(string message)
     {
-        var lower = message.ToLowerInvariant();
+        var tone = _statusToneService.Resolve(message);
+        IsStatusError = tone == StatusTone.Error;
+        IsStatusWarning = tone == StatusTone.Warning;
+        IsStatusSuccess = tone == StatusTone.Success;
+    }
 
-        var isError = lower.Contains("失败")
-                      || lower.Contains("错误")
-                      || lower.Contains("invalid")
-                      || lower.Contains("error")
-                      || lower.Contains("不存在")
-                      || lower.Contains("无效");
+    private void UpdateDeveloperDiagnostics(string? tableName)
+    {
+        if (!IsDeveloperDiagnosticsEnabled)
+        {
+            DeveloperDiagnostics = string.Empty;
+            return;
+        }
 
-        var isWarning = !isError &&
-                        (lower.Contains("警告")
-                         || lower.Contains("warning")
-                         || lower.Contains("锁定")
-                         || lower.Contains("注意"));
+        var diagnostics = _connectionSessionService.GetDiagnostics(tableName);
+        if (!diagnostics.IsConnected)
+        {
+            DeveloperDiagnostics = L("诊断：未连接会话。", "Diagnostics: no active session.");
+            return;
+        }
 
-        var isSuccess = !isError && !isWarning &&
-                        (lower.Contains("已")
-                         || lower.Contains("成功")
-                         || lower.Contains("完成")
-                         || lower.Contains("success")
-                         || lower.Contains("connected")
-                         || lower.Contains("disconnected")
-                         || lower.Contains("loaded")
-                         || lower.Contains("opened")
-                         || lower.Contains("created")
-                         || lower.Contains("updated"));
+        var selectedTable = diagnostics.SelectedTable ?? "-";
+        var textZh = $"诊断：v{diagnostics.FileVersion}；表 {diagnostics.TableCount}；Schema表 {diagnostics.SchemaTableCount}；当前表 {selectedTable}；命中Schema {diagnostics.HasSchemaForSelectedTable}；字段数 {diagnostics.SelectedTableSchemaFieldCount}；回退模式 false";
+        var textEn = $"Diagnostics: v{diagnostics.FileVersion}; tables={diagnostics.TableCount}; schemaTables={diagnostics.SchemaTableCount}; selected={selectedTable}; hasSchema={diagnostics.HasSchemaForSelectedTable}; fields={diagnostics.SelectedTableSchemaFieldCount}; fallback=false";
+        DeveloperDiagnostics = L(textZh, textEn);
+    }
 
-        IsStatusError = isError;
-        IsStatusWarning = isWarning;
-        IsStatusSuccess = isSuccess;
+    private static bool IsDeveloperDiagnosticsEnabledByDefault()
+    {
+#if DEBUG
+        return true;
+#else
+        var raw = Environment.GetEnvironmentVariable("PERIGON_MINIDB_CLIENT_DIAGNOSTICS");
+        return string.Equals(raw, "1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(raw, "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(raw, "yes", StringComparison.OrdinalIgnoreCase);
+#endif
     }
 }

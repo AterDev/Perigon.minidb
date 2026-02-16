@@ -1,0 +1,101 @@
+<div class="page-root @ThemeCssClass">
+    <FluentDesignTheme Mode="@CurrentThemeMode" />
+
+    <section class="workspace-grid">
+        <div class="left-pane">
+            <h4>@ViewModel.SectionTables</h4>
+            <div class="form-row">
+                <label>@ViewModel.Localize("搜索", "Search")</label>
+                <input value="@ViewModel.TableSearchText" @oninput="OnTableSearchChanged" placeholder="@ViewModel.LabelSearchTableWatermark" />
+            </div>
+            <div class="table-list" tabindex="0" @onkeydown="OnTableListKeyDown">
+                @if (ViewModel.TableNames.Count == 0)
+                {
+                    <div class="empty-box">@ViewModel.LabelNoConnection</div>
+                }
+                else
+                {
+                    @foreach (var tableName in ViewModel.TableNames)
+                    {
+                        <button class="table-item @(tableName == ViewModel.SelectedTableName ? "active" : string.Empty)"
+                                @key="tableName"
+                                @onclick="() => SelectTable(tableName)">
+                            @tableName
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="right-pane">
+            <p class="meta-line">@ViewModel.Localize("当前连接：", "Current connection:") <strong>@ViewModel.SelectedConnectionDisplay</strong></p>
+            <p class="meta-line">@ViewModel.Localize("当前表：", "Current table:") <strong>@ViewModel.SelectedTableName</strong></p>
+            <p class="meta-line">@ViewModel.Localize("记录统计：", "Summary:") @ViewModel.FilterSummary</p>
+            @if (ViewModel.IsDeveloperDiagnosticsEnabled)
+            {
+                <p class="meta-line diagnostics-line">@ViewModel.DeveloperDiagnostics</p>
+            }
+
+        <div class="form-row form-row-wide">
+            <label>@ViewModel.Localize("筛选", "Filter")</label>
+            <input value="@ViewModel.QuickFilterText"
+                   @oninput="OnQuickFilterChanged"
+                   placeholder="@ViewModel.LabelGridFilterWatermark" />
+        </div>
+
+        <div class="button-row">
+            <FluentButton Appearance="Appearance.Accent" @onclick="ApplyFilter">@ViewModel.BtnApply</FluentButton>
+            <FluentButton @onclick="ClearFilter">@ViewModel.BtnClear</FluentButton>
+        </div>
+
+        <div class="button-row">
+            <FluentButton @onclick="FirstPage">@ViewModel.BtnFirstPage</FluentButton>
+            <FluentButton @onclick="PrevPage">@ViewModel.BtnPrevPage</FluentButton>
+            <FluentButton @onclick="NextPage">@ViewModel.BtnNextPage</FluentButton>
+            <FluentButton @onclick="LastPage">@ViewModel.BtnLastPage</FluentButton>
+
+            <select value="@ViewModel.PageSize" @onchange="OnPageSizeChanged">
+                @foreach (var size in ViewModel.PageSizeOptions)
+                {
+                    <option value="@size">@size</option>
+                }
+            </select>
+        </div>
+
+        <div class="meta-line">@ViewModel.PageSummary</div>
+
+        @if (ViewModel.PagedItems.Count == 0)
+        {
+            <div class="empty-box">@ViewModel.LabelNoDataTitle</div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            @foreach (var header in _headers)
+                            {
+                                <th>@header</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in ViewModel.PagedItems)
+                        {
+                            <tr @key="row">
+                                @foreach (var value in GetRowValues(row))
+                                {
+                                    <td>@value</td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        </div>
+    </section>
+
+    <div class="status-bar">@ViewModel.StatusMessage</div>
+</div>

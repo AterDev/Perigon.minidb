@@ -20,6 +20,8 @@ public class TableMetadata
     /// This ensures consistent offset calculations across reloads.
     /// </summary>
     public int TableIndex { get; set; }
+    public long SchemaOffset { get; set; }
+    public int SchemaLength { get; set; }
 }
 
 /// <summary>
@@ -31,19 +33,30 @@ internal class StorageManager
     private const int TABLE_META_SIZE = 128;
     private const int EXTENT_RECORD_GROWTH = 1000;
     private const string MAGIC_NUMBER = "MDB1";
-    private const short VERSION = 1;
+    private const short CURRENT_VERSION = 2;
+    private const short MIN_SUPPORTED_VERSION = 1;
     private const int GLOBAL_WRITE_VERSION_OFFSET = 8; // 4(Magic) + 2(Version) + 2(TableCount)
     private const int HEADER_RESERVED_BYTES = 248;
     private const int HEADER_RESERVED_REMAINING_BYTES = HEADER_RESERVED_BYTES - sizeof(long);
     private const int EXTENT_DIRECTORY_OFFSET_SIZE = sizeof(long);
     private const int EXTENT_COUNT_SIZE = sizeof(int);
-    private const int TABLE_META_RESERVED_REMAINING_BYTES = 40 - EXTENT_DIRECTORY_OFFSET_SIZE - EXTENT_COUNT_SIZE;
+    private const int SCHEMA_OFFSET_SIZE = sizeof(long);
+    private const int SCHEMA_LENGTH_SIZE = sizeof(int);
+    private const int TABLE_META_RESERVED_REMAINING_BYTES_V2 = 40
+        - EXTENT_DIRECTORY_OFFSET_SIZE
+        - EXTENT_COUNT_SIZE
+        - SCHEMA_OFFSET_SIZE
+        - SCHEMA_LENGTH_SIZE;
+    private const int TABLE_META_RESERVED_REMAINING_BYTES_V1 = 40
+        - EXTENT_DIRECTORY_OFFSET_SIZE
+        - EXTENT_COUNT_SIZE;
 
     private readonly string _filePath;
     private readonly FileWriteQueue _writeQueue;
     private readonly Dictionary<string, TableMetadata> _tables = [];
     private readonly Dictionary<string, List<long>> _tableExtentStarts = [];
     private readonly Dictionary<string, long> _tableExtentDirectoryOffsets = [];
+    private readonly Dictionary<string, PersistedTableSchema> _tableSchemas = [];
     private FrozenDictionary<Type, EntityMetadata> _entityMetadataCache = FrozenDictionary<Type, EntityMetadata>.Empty;
     private long _knownGlobalWriteVersion;
 
@@ -77,7 +90,7 @@ internal class StorageManager
         Span<byte> magicBytes = stackalloc byte[4];
         Encoding.ASCII.GetBytes(MAGIC_NUMBER, magicBytes);
         writer.Write(magicBytes);
-        writer.Write(VERSION);
+        writer.Write(CURRENT_VERSION);
         writer.Write((short)tableTypes.Count);
 
         // Global write version (for lazy metadata refresh across processes)
@@ -89,17 +102,32 @@ internal class StorageManager
 
         _knownGlobalWriteVersion = 0;
 
-        long currentOffset = FILE_HEADER_SIZE + (tableTypes.Count * TABLE_META_SIZE);
-
-        // Build metadata cache
+        // Build metadata cache and persisted schema bytes
         var metadataBuilder = new Dictionary<Type, EntityMetadata>();
+        var schemaBytesByTable = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+
+        long schemaSectionSize = 0;
+        foreach (var kvp in tableTypes)
+        {
+            var metadata = EntityMetadata.Create(kvp.Value);
+            metadataBuilder[kvp.Value] = metadata;
+
+            var persistedSchema = metadata.ToPersistedSchema();
+            var schemaBytes = SerializeTableSchema(persistedSchema);
+            schemaBytesByTable[kvp.Key] = schemaBytes;
+            schemaSectionSize += schemaBytes.Length;
+            _tableSchemas[kvp.Key] = persistedSchema;
+        }
+
+        long schemaCursor = FILE_HEADER_SIZE + (tableTypes.Count * TABLE_META_SIZE);
+        long currentOffset = schemaCursor + schemaSectionSize;
 
         // Write table metadata
         int tableIndex = 0;
         foreach (var kvp in tableTypes)
         {
-            var metadata = EntityMetadata.Create(kvp.Value);
-            metadataBuilder[kvp.Value] = metadata;
+            var metadata = metadataBuilder[kvp.Value];
+            var schemaBytes = schemaBytesByTable[kvp.Key];
 
             var tableMetadata = new TableMetadata
             {
@@ -108,7 +136,9 @@ internal class StorageManager
                 RecordSize = metadata.RecordSize,
                 DataStartOffset = currentOffset,
                 ReservedRecordCount = EXTENT_RECORD_GROWTH,
-                TableIndex = tableIndex
+                TableIndex = tableIndex,
+                SchemaOffset = schemaCursor,
+                SchemaLength = schemaBytes.Length
             };
             _tables[kvp.Key] = tableMetadata;
             _tableExtentStarts[kvp.Key] = [currentOffset];
@@ -116,7 +146,16 @@ internal class StorageManager
 
             WriteTableMetadata(writer, tableMetadata);
             tableIndex++;
+            schemaCursor += schemaBytes.Length;
             currentOffset += metadata.RecordSize * tableMetadata.ReservedRecordCount;
+        }
+
+        // Write schema section immediately after table metadata section
+        foreach (var kvp in tableTypes)
+        {
+            var table = _tables[kvp.Key];
+            file.Seek(table.SchemaOffset, SeekOrigin.Begin);
+            writer.Write(schemaBytesByTable[kvp.Key]);
         }
 
         // Freeze the metadata cache after initialization
@@ -148,8 +187,10 @@ internal class StorageManager
             : 1;
         writer.Write(extentDirectoryOffset);
         writer.Write(extentCount);
+        writer.Write(metadata.SchemaOffset);
+        writer.Write(metadata.SchemaLength);
 
-        Span<byte> reserved = stackalloc byte[TABLE_META_RESERVED_REMAINING_BYTES];
+        Span<byte> reserved = stackalloc byte[TABLE_META_RESERVED_REMAINING_BYTES_V2];
         reserved.Clear();
         writer.Write(reserved);
     }
@@ -159,6 +200,7 @@ internal class StorageManager
         _tables.Clear();
         _tableExtentStarts.Clear();
         _tableExtentDirectoryOffsets.Clear();
+        _tableSchemas.Clear();
 
         using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new BinaryReader(file);
@@ -169,8 +211,8 @@ internal class StorageManager
             throw new InvalidDataException("Invalid database file format");
 
         var version = reader.ReadInt16();
-        if (version != VERSION)
-            throw new InvalidDataException($"Unsupported database version: {version}. Expected version: {VERSION}.");
+        if (version < MIN_SUPPORTED_VERSION || version > CURRENT_VERSION)
+            throw new InvalidDataException($"Unsupported database version: {version}. Supported versions: {MIN_SUPPORTED_VERSION}..{CURRENT_VERSION}.");
 
         var tableCount = reader.ReadInt16();
         _knownGlobalWriteVersion = reader.ReadInt64();
@@ -190,7 +232,15 @@ internal class StorageManager
             var tableIndex = reader.ReadInt32();
             var extentDirectoryOffset = reader.ReadInt64();
             var extentCount = reader.ReadInt32();
-            reader.ReadBytes(TABLE_META_RESERVED_REMAINING_BYTES); // Skip reserved
+            long schemaOffset = 0;
+            int schemaLength = 0;
+            if (version >= 2)
+            {
+                schemaOffset = reader.ReadInt64();
+                schemaLength = reader.ReadInt32();
+            }
+
+            reader.ReadBytes(version >= 2 ? TABLE_META_RESERVED_REMAINING_BYTES_V2 : TABLE_META_RESERVED_REMAINING_BYTES_V1); // Skip reserved
 
             _tables[tableName] = new TableMetadata
             {
@@ -199,7 +249,9 @@ internal class StorageManager
                 RecordSize = recordSize,
                 DataStartOffset = dataStartOffset,
                 ReservedRecordCount = reservedRecordCount > 0 ? reservedRecordCount : EXTENT_RECORD_GROWTH,
-                TableIndex = tableIndex
+                TableIndex = tableIndex,
+                SchemaOffset = schemaOffset,
+                SchemaLength = schemaLength
             };
 
             pendingExtentMeta.Add((tableName, extentDirectoryOffset, extentCount));
@@ -218,6 +270,26 @@ internal class StorageManager
                 _tableExtentStarts[tableName] = [_tables[tableName].DataStartOffset];
             }
         }
+
+        if (version >= 2)
+        {
+            foreach (var table in _tables.Values)
+            {
+                if (table.SchemaOffset <= 0 || table.SchemaLength <= 0)
+                {
+                    continue;
+                }
+
+                file.Seek(table.SchemaOffset, SeekOrigin.Begin);
+                var schemaBytes = reader.ReadBytes(table.SchemaLength);
+                if (schemaBytes.Length != table.SchemaLength)
+                {
+                    throw new InvalidDataException($"Failed to read full schema bytes for table '{table.TableName}'.");
+                }
+
+                _tableSchemas[table.TableName] = DeserializeTableSchema(schemaBytes);
+            }
+        }
     }
 
     public async Task<List<T>> LoadTableAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
@@ -229,7 +301,7 @@ internal class StorageManager
         if (tableMetadata.RecordCount == 0)
             return result;
 
-        var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
+        var entityMetadata = GetOrCreateEntityMetadata(typeof(T), tableName);
         if (tableMetadata.RecordSize != entityMetadata.RecordSize)
         {
             throw new InvalidDataException(
@@ -289,7 +361,7 @@ internal class StorageManager
             EnsureMetadataUpToDateUnderFileLock();
 
             var tableMetadata = _tables[tableName];
-            var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
+            var entityMetadata = GetOrCreateEntityMetadata(typeof(T), tableName);
             if (tableMetadata.RecordSize != entityMetadata.RecordSize)
             {
                 throw new InvalidDataException(
@@ -374,6 +446,67 @@ internal class StorageManager
         return starts;
     }
 
+    private static byte[] SerializeTableSchema(PersistedTableSchema schema)
+    {
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+
+        writer.Write(schema.Version);
+        writer.Write(schema.Fields.Count);
+        foreach (var field in schema.Fields)
+        {
+            var nameBytes = Encoding.UTF8.GetBytes(field.Name);
+            writer.Write((short)nameBytes.Length);
+            writer.Write(nameBytes);
+            writer.Write((byte)field.Type);
+            writer.Write(field.Offset);
+            writer.Write(field.Size);
+            writer.Write(field.MaxLength);
+            writer.Write(field.IsPrimaryKey);
+            writer.Write(field.IsNullable);
+        }
+
+        writer.Flush();
+        return ms.ToArray();
+    }
+
+    private static PersistedTableSchema DeserializeTableSchema(byte[] bytes)
+    {
+        using var ms = new MemoryStream(bytes);
+        using var reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+        var schema = new PersistedTableSchema
+        {
+            Version = reader.ReadInt32()
+        };
+
+        var fieldCount = reader.ReadInt32();
+        for (var i = 0; i < fieldCount; i++)
+        {
+            var nameLength = reader.ReadInt16();
+            var name = Encoding.UTF8.GetString(reader.ReadBytes(nameLength));
+            var type = (SchemaFieldType)reader.ReadByte();
+            var offset = reader.ReadInt32();
+            var size = reader.ReadInt32();
+            var maxLength = reader.ReadInt32();
+            var isPrimaryKey = reader.ReadBoolean();
+            var isNullable = reader.ReadBoolean();
+
+            schema.Fields.Add(new PersistedFieldSchema
+            {
+                Name = name,
+                Type = type,
+                Offset = offset,
+                Size = size,
+                MaxLength = maxLength,
+                IsPrimaryKey = isPrimaryKey,
+                IsNullable = isNullable
+            });
+        }
+
+        return schema;
+    }
+
     private long GetRecordOffset(string tableName, int id)
     {
         var table = _tables[tableName];
@@ -456,8 +589,8 @@ internal class StorageManager
             throw new InvalidDataException("Invalid database file format");
 
         var version = reader.ReadInt16();
-        if (version != VERSION)
-            throw new InvalidDataException($"Unsupported database version: {version}. Expected version: {VERSION}.");
+        if (version < MIN_SUPPORTED_VERSION || version > CURRENT_VERSION)
+            throw new InvalidDataException($"Unsupported database version: {version}. Supported versions: {MIN_SUPPORTED_VERSION}..{CURRENT_VERSION}.");
 
         _ = reader.ReadInt16(); // tableCount
         return reader.ReadInt64();
@@ -478,14 +611,15 @@ internal class StorageManager
             throw new InvalidDataException("Invalid database file format");
 
         var version = reader.ReadInt16();
-        if (version != VERSION)
-            throw new InvalidDataException($"Unsupported database version: {version}. Expected version: {VERSION}.");
+        if (version < MIN_SUPPORTED_VERSION || version > CURRENT_VERSION)
+            throw new InvalidDataException($"Unsupported database version: {version}. Supported versions: {MIN_SUPPORTED_VERSION}..{CURRENT_VERSION}.");
 
         var tableCount = reader.ReadInt16();
         _knownGlobalWriteVersion = reader.ReadInt64();
         reader.ReadBytes(HEADER_RESERVED_REMAINING_BYTES); // Skip remaining reserved
 
         var latest = new Dictionary<string, TableMetadata>(tableCount, StringComparer.Ordinal);
+        var pendingExtentMeta = new List<(string TableName, long DirectoryOffset, int ExtentCount)>();
         for (int i = 0; i < tableCount; i++)
         {
             var nameBytes = reader.ReadBytes(64);
@@ -495,7 +629,17 @@ internal class StorageManager
             var dataStartOffset = reader.ReadInt64();
             var reservedRecordCount = reader.ReadInt32();
             var tableIndex = reader.ReadInt32();
-            reader.ReadBytes(40); // Skip reserved
+            var extentDirectoryOffset = reader.ReadInt64();
+            var extentCount = reader.ReadInt32();
+            long schemaOffset = 0;
+            int schemaLength = 0;
+            if (version >= 2)
+            {
+                schemaOffset = reader.ReadInt64();
+                schemaLength = reader.ReadInt32();
+            }
+
+            reader.ReadBytes(version >= 2 ? TABLE_META_RESERVED_REMAINING_BYTES_V2 : TABLE_META_RESERVED_REMAINING_BYTES_V1); // Skip reserved
 
             latest[name] = new TableMetadata
             {
@@ -504,8 +648,48 @@ internal class StorageManager
                 RecordSize = recordSize,
                 DataStartOffset = dataStartOffset,
                 ReservedRecordCount = reservedRecordCount > 0 ? reservedRecordCount : EXTENT_RECORD_GROWTH,
-                TableIndex = tableIndex
+                TableIndex = tableIndex,
+                SchemaOffset = schemaOffset,
+                SchemaLength = schemaLength
             };
+
+            pendingExtentMeta.Add((name, extentDirectoryOffset, extentCount));
+        }
+
+        _tableExtentDirectoryOffsets.Clear();
+        _tableExtentStarts.Clear();
+        foreach (var (tableName, directoryOffset, extentCount) in pendingExtentMeta)
+        {
+            _tableExtentDirectoryOffsets[tableName] = directoryOffset;
+            if (extentCount > 1 && directoryOffset > 0)
+            {
+                _tableExtentStarts[tableName] = ReadExtentStarts(reader, directoryOffset, extentCount);
+            }
+            else
+            {
+                _tableExtentStarts[tableName] = [latest[tableName].DataStartOffset];
+            }
+        }
+
+        _tableSchemas.Clear();
+        if (version >= 2)
+        {
+            foreach (var table in latest.Values)
+            {
+                if (table.SchemaOffset <= 0 || table.SchemaLength <= 0)
+                {
+                    continue;
+                }
+
+                file.Seek(table.SchemaOffset, SeekOrigin.Begin);
+                var schemaBytes = reader.ReadBytes(table.SchemaLength);
+                if (schemaBytes.Length != table.SchemaLength)
+                {
+                    throw new InvalidDataException($"Failed to read full schema bytes for table '{table.TableName}'.");
+                }
+
+                _tableSchemas[table.TableName] = DeserializeTableSchema(schemaBytes);
+            }
         }
 
         foreach (var (name, metadata) in latest)
@@ -865,14 +1049,23 @@ internal class StorageManager
         return null;
     }
 
-    private EntityMetadata GetOrCreateEntityMetadata(Type type)
+    private EntityMetadata GetOrCreateEntityMetadata(Type type, string? tableName = null)
     {
         if (_entityMetadataCache.TryGetValue(type, out var metadata))
         {
             return metadata;
         }
 
-        metadata = EntityMetadata.Create(type);
+        if (!string.IsNullOrWhiteSpace(tableName)
+            && _tableSchemas.TryGetValue(tableName, out var persistedSchema)
+            && persistedSchema.Version == EntityMetadata.CurrentSchemaVersion)
+        {
+            metadata = EntityMetadata.CreateFromSchema(type, persistedSchema);
+        }
+        else
+        {
+            metadata = EntityMetadata.Create(type);
+        }
 
         // Rebuild frozen dictionary with new entry
         var builder = _entityMetadataCache.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
