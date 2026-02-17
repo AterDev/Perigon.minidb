@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value>
+  </resheader>
+  <data name="准备就绪" xml:space="preserve"><value>Ready.</value></data>
+  <data name="帮助" xml:space="preserve"><value>Help</value></data>
+  <data name="连接" xml:space="preserve"><value>Connection</value></data>
+  <data name="管理连接..." xml:space="preserve"><value>Manage connections...</value></data>
+  <data name="外观" xml:space="preserve"><value>Appearance</value></data>
+  <data name="浅色" xml:space="preserve"><value>Light</value></data>
+  <data name="深色" xml:space="preserve"><value>Dark</value></data>
+  <data name="跟随系统" xml:space="preserve"><value>Follow system</value></data>
+  <data name="启用毛玻璃" xml:space="preserve"><value>Enable glass effect</value></data>
+  <data name="打开仓库地址" xml:space="preserve"><value>Open repository</value></data>
+  <data name="打开问题反馈" xml:space="preserve"><value>Open issues</value></data>
+  <data name="语言" xml:space="preserve"><value>Language</value></data>
+  <data name="连接配置" xml:space="preserve"><value>Connection Config</value></data>
+  <data name="会话操作" xml:space="preserve"><value>Session Actions</value></data>
+  <data name="连接与表" xml:space="preserve"><value>Connections &amp; Tables</value></data>
+  <data name="表" xml:space="preserve"><value>Tables</value></data>
+  <data name="暂无可显示数据" xml:space="preserve"><value>No data to display</value></data>
+  <data name="浏览文件" xml:space="preserve"><value>Browse</value></data>
+  <data name="添加" xml:space="preserve"><value>Add</value></data>
+  <data name="更新" xml:space="preserve"><value>Update</value></data>
+  <data name="删除" xml:space="preserve"><value>Delete</value></data>
+  <data name="断开" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="创建示例库" xml:space="preserve"><value>Create sample DB</value></data>
+  <data name="刷新" xml:space="preserve"><value>Refresh</value></data>
+  <data name="重置视图" xml:space="preserve"><value>Reset view</value></data>
+  <data name="添加条件" xml:space="preserve"><value>Add condition</value></data>
+  <data name="移除条件" xml:space="preserve"><value>Remove condition</value></data>
+  <data name="查询" xml:space="preserve"><value>Apply</value></data>
+  <data name="清空" xml:space="preserve"><value>Clear</value></data>
+  <data name="首页" xml:space="preserve"><value>First</value></data>
+  <data name="上一页" xml:space="preserve"><value>Prev</value></data>
+  <data name="下一页" xml:space="preserve"><value>Next</value></data>
+  <data name="末页" xml:space="preserve"><value>Last</value></data>
+  <data name="包含" xml:space="preserve"><value>Contains</value></data>
+  <data name="等于" xml:space="preserve"><value>Equals</value></data>
+  <data name="不等于" xml:space="preserve"><value>Not equals</value></data>
+  <data name="大于" xml:space="preserve"><value>Greater than</value></data>
+  <data name="大于等于" xml:space="preserve"><value>Greater or equal</value></data>
+  <data name="小于" xml:space="preserve"><value>Less than</value></data>
+  <data name="小于等于" xml:space="preserve"><value>Less or equal</value></data>
+  <data name="区间" xml:space="preserve"><value>Between</value></data>
+  <data name="语言已切换" xml:space="preserve"><value>Language changed</value></data>
+</root>

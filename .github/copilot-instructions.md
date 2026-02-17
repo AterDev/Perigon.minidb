@@ -31,13 +31,12 @@ Perigon.MiniDb/
 │   │   ├── MiniDbOptions.cs             # 配置选项
 │   │   └── (线程安全由 SharedDataCache / FileWriteQueue 协同实现)
 │   │
-│   ├── Perigon.MiniDb.Client/           # WPF 桌面客户端
+│   ├── Perigon.MiniDb.Client/           # Avalonia 桌面客户端
 │   │   ├── ViewModels/                  # MVVM 视图模型
 │   │   ├── Views/                       # XAML 视图和对话框
 │   │   ├── Services/                    # 业务服务层
 │   │   ├── Models/                      # 数据模型
-│   │   ├── Helpers/                     # 辅助类（RelayCommand）
-│   │   └── Sample/                      # 示例数据库上下文
+│   │   └── Helpers/                     # 辅助类（RelayCommand）
 │   │
 │   └── Perigon.MiniDb.Client.csproj
 │
@@ -136,8 +135,6 @@ StorageManager (二进制格式)
 - **内容**：字段顺序、类型大小、可空标记
 - **性能**：运行时零反射
 
----
-
 ## 支持的数据类型
 
 ### 基础类型（✅ 完整支持）
@@ -178,8 +175,6 @@ public OrderStatus? PreviousStatus { get; set; } // 5 字节（4 + 1）
 - ✅ 使用 `await using` 处理异步资源
 - ✅ 不要有多余的 `async/await`：
 
----
-
 
 ## 资源链接
 
@@ -187,5 +182,3 @@ public OrderStatus? PreviousStatus { get; set; } // 5 字节（4 + 1）
 - 🔧 **技术细节**：`docs/技术设计文档.md`
 - 📦 **GitHub**：https://github.com/AterDev/Perigon.minidb
 - 📝 **README**：根目录 `README.md`
-
----

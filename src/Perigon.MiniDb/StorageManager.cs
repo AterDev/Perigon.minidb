@@ -249,7 +249,7 @@ internal class StorageManager
             {
                 var recordOffset = GetRecordOffset(tableName, id);
                 file.Seek(recordOffset, SeekOrigin.Begin);
-                await file.ReadExactlyAsync(buffer, cancellationToken);
+                await file.ReadExactlyAsync(buffer, cancellationToken).ConfigureAwait(false);
 
                 // Check IsDeleted flag
                 if (buffer.Span[0] == 0)

@@ -120,7 +120,7 @@ internal class FileDataCache(string filePath) : IDisposable
     /// </summary>
     public async Task<List<T>> GetOrLoadTableDataAsync<T>(string tableName, Func<Task<List<T>>> loader, CancellationToken cancellationToken = default) where T : new()
     {
-        await _asyncLock.WaitAsync(cancellationToken);
+        await _asyncLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (_tableData.TryGetValue(tableName, out var cachedData))
@@ -128,7 +128,7 @@ internal class FileDataCache(string filePath) : IDisposable
                 return (List<T>)cachedData;
             }
 
-            var data = await loader();
+            var data = await loader().ConfigureAwait(false);
             _tableData[tableName] = data;
             return data;
         }

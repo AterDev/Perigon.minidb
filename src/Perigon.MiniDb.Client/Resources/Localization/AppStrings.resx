@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, ...</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, ...</value>
+  </resheader>
+  <data name="准备就绪" xml:space="preserve"><value>准备就绪</value></data>
+  <data name="帮助" xml:space="preserve"><value>帮助</value></data>
+  <data name="连接" xml:space="preserve"><value>连接</value></data>
+  <data name="管理连接..." xml:space="preserve"><value>管理连接...</value></data>
+  <data name="外观" xml:space="preserve"><value>外观</value></data>
+  <data name="浅色" xml:space="preserve"><value>浅色</value></data>
+  <data name="深色" xml:space="preserve"><value>深色</value></data>
+  <data name="跟随系统" xml:space="preserve"><value>跟随系统</value></data>
+  <data name="启用毛玻璃" xml:space="preserve"><value>启用毛玻璃</value></data>
+  <data name="打开仓库地址" xml:space="preserve"><value>打开仓库地址</value></data>
+  <data name="打开问题反馈" xml:space="preserve"><value>打开问题反馈</value></data>
+  <data name="语言" xml:space="preserve"><value>语言</value></data>
+  <data name="连接配置" xml:space="preserve"><value>连接配置</value></data>
+  <data name="会话操作" xml:space="preserve"><value>会话操作</value></data>
+  <data name="连接与表" xml:space="preserve"><value>连接与表</value></data>
+  <data name="表" xml:space="preserve"><value>表</value></data>
+  <data name="暂无可显示数据" xml:space="preserve"><value>暂无可显示数据</value></data>
+  <data name="浏览文件" xml:space="preserve"><value>浏览文件</value></data>
+  <data name="添加" xml:space="preserve"><value>添加</value></data>
+  <data name="更新" xml:space="preserve"><value>更新</value></data>
+  <data name="删除" xml:space="preserve"><value>删除</value></data>
+  <data name="断开" xml:space="preserve"><value>断开</value></data>
+  <data name="创建示例库" xml:space="preserve"><value>创建示例库</value></data>
+  <data name="刷新" xml:space="preserve"><value>刷新</value></data>
+  <data name="重置视图" xml:space="preserve"><value>重置视图</value></data>
+  <data name="添加条件" xml:space="preserve"><value>添加条件</value></data>
+  <data name="移除条件" xml:space="preserve"><value>移除条件</value></data>
+  <data name="查询" xml:space="preserve"><value>查询</value></data>
+  <data name="清空" xml:space="preserve"><value>清空</value></data>
+  <data name="首页" xml:space="preserve"><value>首页</value></data>
+  <data name="上一页" xml:space="preserve"><value>上一页</value></data>
+  <data name="下一页" xml:space="preserve"><value>下一页</value></data>
+  <data name="末页" xml:space="preserve"><value>末页</value></data>
+  <data name="包含" xml:space="preserve"><value>包含</value></data>
+  <data name="等于" xml:space="preserve"><value>等于</value></data>
+  <data name="不等于" xml:space="preserve"><value>不等于</value></data>
+  <data name="大于" xml:space="preserve"><value>大于</value></data>
+  <data name="大于等于" xml:space="preserve"><value>大于等于</value></data>
+  <data name="小于" xml:space="preserve"><value>小于</value></data>
+  <data name="小于等于" xml:space="preserve"><value>小于等于</value></data>
+  <data name="区间" xml:space="preserve"><value>区间</value></data>
+  <data name="语言已切换" xml:space="preserve"><value>语言已切换</value></data>
+</root>
