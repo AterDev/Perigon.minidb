@@ -4,20 +4,22 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using Microsoft.Extensions.DependencyInjection;
+using Perigon.MiniDb.Client.Resources.Localization;
 using Perigon.MiniDb.Client.ViewModels;
 
 namespace Perigon.MiniDb.Client;
 
 public partial class ConnectionManagerWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private readonly MainViewModelV2 _viewModel;
 
     public ConnectionManagerWindow()
-        : this(new MainViewModel())
+        : this(App.Services?.GetService<MainViewModelV2>() ?? new MainViewModelV2())
     {
     }
 
-    public ConnectionManagerWindow(MainViewModel viewModel)
+    public ConnectionManagerWindow(MainViewModelV2 viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel;
@@ -33,7 +35,7 @@ public partial class ConnectionManagerWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = _viewModel.Localize("选择 MiniDB 文件", "Select MiniDB file"),
+            Title = _viewModel.Localize(AppStrings.Keys.DialogSelectMiniDbFile),
             AllowMultiple = false,
             FileTypeFilter =
             [

@@ -1,33 +1,38 @@
-﻿using System.IO;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Styling;
+using Microsoft.Extensions.DependencyInjection;
+using Perigon.MiniDb.Client.Resources.Localization;
 using Perigon.MiniDb.Client.ViewModels;
 
 namespace Perigon.MiniDb.Client;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _viewModel;
+    private readonly MainViewModelV2 _viewModel;
     private Button? _maxRestoreButton;
 
     public MainWindow()
+        : this(App.Services?.GetService<MainViewModelV2>() ?? new MainViewModelV2())
+    {
+    }
+
+    public MainWindow(MainViewModelV2 viewModel)
     {
         InitializeComponent();
-        _viewModel = new MainViewModel();
+        _viewModel = viewModel;
         DataContext = _viewModel;
 
         ApplyTheme(_viewModel.ThemePreference);
         ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
         _viewModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainViewModel.IsGlassEffectEnabled))
+            if (args.PropertyName == nameof(MainViewModelV2.IsGlassEffectEnabled))
             {
                 ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
             }
@@ -94,81 +99,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void BrowseConnectionPath_Click(object? sender, RoutedEventArgs e)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = _viewModel.Localize("选择 MiniDB 文件", "Select MiniDB file"),
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("MiniDB")
-                {
-                    Patterns = ["*.mds"],
-                    AppleUniformTypeIdentifiers = ["public.data"],
-                    MimeTypes = ["application/octet-stream"]
-                }
-            ]
-        });
-
-        var file = files.FirstOrDefault();
-        if (file is null)
-        {
-            return;
-        }
-
-        var path = file.TryGetLocalPath();
-        if (!string.IsNullOrWhiteSpace(path))
-        {
-            _viewModel.NewConnectionPath = path;
-
-            if (string.IsNullOrWhiteSpace(_viewModel.NewConnectionName))
-            {
-                _viewModel.NewConnectionName = Path.GetFileNameWithoutExtension(path);
-            }
-        }
-    }
-
-    private async void CreateSampleDatabase_Click(object? sender, RoutedEventArgs e)
-    {
-        var target = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = _viewModel.Localize("创建示例数据库", "Create sample database"),
-            SuggestedFileName = "sample.mds",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("MiniDB")
-                {
-                    Patterns = ["*.mds"],
-                    AppleUniformTypeIdentifiers = ["public.data"],
-                    MimeTypes = ["application/octet-stream"]
-                }
-            ]
-        });
-
-        if (target is null)
-        {
-            return;
-        }
-
-        var filePath = target.TryGetLocalPath();
-        if (string.IsNullOrWhiteSpace(filePath))
-        {
-            _viewModel.StatusMessage = _viewModel.Localize("无法获取目标文件路径。", "Unable to get target file path.");
-            return;
-        }
-
-        try
-        {
-            await Sample.SampleDbContext.CreateSampleDatabaseAsync(filePath);
-            _viewModel.StatusMessage = _viewModel.LocalizeFormat("示例数据库已创建：{0}", "Sample database created: {0}", filePath);
-        }
-        catch (Exception ex)
-        {
-            _viewModel.StatusMessage = _viewModel.LocalizeFormat("创建示例数据库失败：{0}", "Failed to create sample database: {0}", ex.Message);
-        }
-    }
-
     private void SwitchToChinese_Click(object? sender, RoutedEventArgs e)
     {
         _viewModel.SetLanguagePreference("zh-CN");
@@ -190,11 +120,11 @@ public partial class MainWindow : Window
                 UseShellExecute = true
             });
 
-            _viewModel.StatusMessage = _viewModel.Localize("已在浏览器中打开仓库地址。", "Repository opened in browser.");
+            _viewModel.StatusMessage = _viewModel.Localize(AppStrings.Keys.MessageRepositoryOpened);
         }
         catch (Exception ex)
         {
-            _viewModel.StatusMessage = _viewModel.LocalizeFormat("打开仓库地址失败：{0}", "Failed to open repository: {0}", ex.Message);
+            _viewModel.StatusMessage = _viewModel.LocalizeFormat(AppStrings.Keys.MessageOpenRepositoryFailed, ex.Message);
         }
     }
 
@@ -209,11 +139,11 @@ public partial class MainWindow : Window
                 UseShellExecute = true
             });
 
-            _viewModel.StatusMessage = _viewModel.Localize("已打开问题反馈页面。", "Issues page opened.");
+            _viewModel.StatusMessage = _viewModel.Localize(AppStrings.Keys.MessageIssuesOpened);
         }
         catch (Exception ex)
         {
-            _viewModel.StatusMessage = _viewModel.LocalizeFormat("打开问题反馈页面失败：{0}", "Failed to open issues page: {0}", ex.Message);
+            _viewModel.StatusMessage = _viewModel.LocalizeFormat(AppStrings.Keys.MessageOpenIssuesFailed, ex.Message);
         }
     }
 
@@ -235,13 +165,6 @@ public partial class MainWindow : Window
     {
         _viewModel.SetThemePreference("System");
         ApplyTheme("System");
-        ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
-    }
-
-    private void ResetViewPreferences_Click(object? sender, RoutedEventArgs e)
-    {
-        _viewModel.ResetViewPreferences();
-        ApplyTheme(_viewModel.ThemePreference);
         ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
     }
 

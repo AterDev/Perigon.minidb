@@ -41,7 +41,7 @@ dotnet run --project src/Perigon.MiniDb.Client/Perigon.MiniDb.Client.csproj
 ## 目录概览
 
 - `MainWindow.axaml` / `MainWindow.xaml.cs`：主界面与交互
-- `ViewModels/MainViewModel.cs`：连接、表加载、分页、筛选、状态管理
+- `ViewModels/MainViewModelV2.cs`：连接、表加载、分页、筛选、状态管理（MVVM Toolkit）
 - `Services/DatabaseConnectionService.cs`：连接持久化
 - `Services/ClientSettingsService.cs`：视图偏好持久化
 - `Models/DatabaseConnection.cs`：连接模型

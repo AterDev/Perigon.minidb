@@ -1,21 +1,21 @@
 <Window xmlns="https://github.com/avaloniaui"
-  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-  xmlns:vm="using:Perigon.MiniDb.Client.ViewModels"
-  x:Name="RootWindow"
-  x:Class="Perigon.MiniDb.Client.MainWindow"
-  x:DataType="vm:MainViewModel"
-  mc:Ignorable="d"
-  Title="{Binding AppTitle}"
-  Icon="avares://Perigon.MiniDb.Client/Resources/perigon_icon.PNG"
-  SystemDecorations="None"
-  ExtendClientAreaToDecorationsHint="True"
-  ExtendClientAreaChromeHints="NoChrome"
-  Width="1300"
-  Height="760"
-  MinWidth="1180"
-  MinHeight="680">
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Perigon.MiniDb.Client.ViewModels"
+        x:Name="RootWindow"
+        x:Class="Perigon.MiniDb.Client.MainWindow"
+        x:DataType="vm:MainViewModelV2"
+        mc:Ignorable="d"
+        Title="{Binding [App.Title]}"
+        Icon="avares://Perigon.MiniDb.Client/Resources/perigon_icon.png"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        Width="1300"
+        Height="760"
+        MinWidth="1180"
+        MinHeight="680">
 
   <Window.Styles>
     <Style Selector="Border.titleBarHost">
@@ -28,7 +28,7 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Padding" Value="0" />
     </Style>
-    <Style Selector="Menu.titleMenu > MenuItem">
+    <Style Selector="Menu.titleMenu > MenuItem" >
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="Padding" Value="10,0,10,0" />
       <Setter Property="VerticalAlignment" Value="Center" />
@@ -95,7 +95,7 @@
   </Window.Styles>
 
   <Design.DataContext>
-    <vm:MainViewModel />
+    <vm:MainViewModelV2 />
   </Design.DataContext>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="4">
@@ -105,33 +105,29 @@
           <Image Width="18"
                  Height="18"
                  Stretch="Uniform"
-                 Source="avares://Perigon.MiniDb.Client/Resources/perigon_logo320.png" />
+                 Source="avares://Perigon.MiniDb.Client/Resources/perigon_icon.png" />
           <TextBlock Text="Perigon MiniDb" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
 
         <Menu Grid.Column="1" Classes="titleMenu" VerticalAlignment="Center" Margin="2,0,0,0">
-          <MenuItem Header="{Binding MenuConnection}">
-            <MenuItem Header="{Binding MenuManageConnections}" Click="OpenConnectionManager_Click" />
+          <MenuItem Header="{Binding MenuConnectionText}">
+            <MenuItem Header="{Binding MenuManageConnectionsText}" Click="OpenConnectionManager_Click" />
             <Separator />
-            <MenuItem Header="{Binding BtnConnect}" Command="{Binding ConnectCommand}" />
-            <MenuItem Header="{Binding BtnDisconnect}" Command="{Binding DisconnectCommand}" />
-            <MenuItem Header="{Binding BtnCreateSample}" Click="CreateSampleDatabase_Click" />
+            <MenuItem Header="{Binding [Button.Connect]}" Command="{Binding ConnectCommand}" />
+            <MenuItem Header="{Binding [Button.Disconnect]}" Command="{Binding DisconnectCommand}" />
           </MenuItem>
-          <MenuItem Header="{Binding MenuAppearance}">
-            <MenuItem Header="{Binding MenuLightTheme}" Click="UseLightTheme_Click" />
-            <MenuItem Header="{Binding MenuDarkTheme}" Click="UseDarkTheme_Click" />
-            <MenuItem Header="{Binding MenuSystemTheme}" Click="UseSystemTheme_Click" />
-            <Separator />
-            <MenuItem Header="{Binding MenuToggleGlass}" ToggleType="CheckBox" IsChecked="{Binding IsGlassEffectEnabled}" />
-            <MenuItem Header="{Binding BtnResetView}" Click="ResetViewPreferences_Click" />
+          <MenuItem Header="{Binding MenuAppearanceText}">
+            <MenuItem Header="{Binding MenuLightThemeText}" Click="UseLightTheme_Click" />
+            <MenuItem Header="{Binding MenuDarkThemeText}" Click="UseDarkTheme_Click" />
+            <MenuItem Header="{Binding MenuSystemThemeText}" Click="UseSystemTheme_Click" />
           </MenuItem>
-          <MenuItem Header="{Binding MenuLanguage}">
-            <MenuItem Header="{Binding MenuLangZh}" ToggleType="CheckBox" IsChecked="{Binding IsChinese}" Click="SwitchToChinese_Click" />
-            <MenuItem Header="{Binding MenuLangEn}" ToggleType="CheckBox" IsChecked="{Binding IsEnglish}" Click="SwitchToEnglish_Click" />
+          <MenuItem Header="{Binding MenuLanguageText}">
+            <MenuItem Header="中文" ToggleType="CheckBox" IsChecked="{Binding IsChinese}" Click="SwitchToChinese_Click" />
+            <MenuItem Header="English" ToggleType="CheckBox" IsChecked="{Binding IsEnglish}" Click="SwitchToEnglish_Click" />
           </MenuItem>
-          <MenuItem Header="{Binding MenuHelp}">
-            <MenuItem Header="{Binding MenuOpenRepo}" Click="OpenRepository_Click" />
-            <MenuItem Header="{Binding MenuOpenIssues}" Click="OpenIssues_Click" />
+          <MenuItem Header="{Binding MenuHelpText}">
+            <MenuItem Header="{Binding MenuOpenRepoText}" Click="OpenRepository_Click" />
+            <MenuItem Header="{Binding MenuOpenIssuesText}" Click="OpenIssues_Click" />
           </MenuItem>
         </Menu>
 
@@ -151,9 +147,9 @@
     <Grid Grid.Row="1" Margin="0,2,0,4" ColumnDefinitions="280,4,*">
       <Border Grid.Column="0" Classes="card">
         <Grid RowDefinitions="Auto,Auto,Auto,*">
-          <TextBlock Classes="sectionTitle" Text="{Binding SectionTables}" />
+          <TextBlock Classes="sectionTitle" Text="{Binding [Section.Tables]}" />
           <TextBlock Grid.Row="1" Margin="0,2,0,4" Classes="metaText" Text="{Binding LabelTableCount}" />
-          <TextBox Grid.Row="2" Watermark="{Binding LabelSearchTableWatermark}" Text="{Binding TableSearchText}" />
+          <TextBox Grid.Row="2" Watermark="{Binding [Label.SearchTableWatermark]}" Text="{Binding TableSearchText}" />
           <ListBox Grid.Row="3"
                    Margin="0,4,0,0"
                    ItemsSource="{Binding TableNames}"
@@ -163,87 +159,70 @@
 
       <Border Grid.Column="2" Classes="card">
         <Grid>
-          <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" IsVisible="{Binding IsConnected}">
-          <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
-            <TextBlock Grid.Column="0" Classes="sectionTitle" Text="{Binding TableTitle}" />
-            <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
-              <TextBlock Text="{Binding LabelFilteredCount}" />
-            </Border>
-            <TextBlock Grid.Column="2" HorizontalAlignment="Right" Classes="metaText" Text="{Binding LabelRawCount}" />
-          </Grid>
+          <Grid RowDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding IsConnected}">
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="4">
+              <TextBlock Grid.Column="0" Classes="sectionTitle" Text="{Binding TableTitle}" />
+              <Border Grid.Column="1" Classes="badge" VerticalAlignment="Center">
+                <TextBlock Text="{Binding LabelFilteredCount}" />
+              </Border>
+              <TextBlock Grid.Column="2" HorizontalAlignment="Right" Classes="metaText" Text="{Binding LabelRawCount}" />
+            </Grid>
 
-          <Grid Grid.Row="1" Margin="0,4,0,4" ColumnDefinitions="180,120,*,*,Auto,Auto,Auto,Auto">
-            <ComboBox Grid.Column="0" ItemsSource="{Binding FilterFields}" SelectedItem="{Binding SelectedFilterField}" />
-            <ComboBox Grid.Column="1" Margin="4,0,0,0" ItemsSource="{Binding FilterOperators}" SelectedItem="{Binding SelectedFilterOperatorOption}" />
-            <TextBox Grid.Column="2" Margin="4,0,0,0" Watermark="{Binding LabelFilterValueWatermark}" Text="{Binding FilterValue}" />
-            <TextBox Grid.Column="3" Margin="4,0,0,0" Watermark="{Binding LabelFilterValueToWatermark}" Text="{Binding FilterValueTo}" />
-            <Button Grid.Column="4" Margin="4,0,0,0" Content="{Binding BtnAddCondition}" Command="{Binding AddFilterConditionCommand}" />
-            <Button Grid.Column="5" Margin="4,0,0,0" Content="{Binding BtnRemoveCondition}" Command="{Binding RemoveFilterConditionCommand}" />
-            <Button Grid.Column="6" Margin="4,0,0,0" Content="{Binding BtnApply}" Command="{Binding ApplyFilterCommand}" />
-            <Button Grid.Column="7" Margin="4,0,0,0" Content="{Binding BtnClear}" Command="{Binding ClearFilterCommand}" />
-          </Grid>
+            <Grid Grid.Row="1" Margin="0,4,0,4" ColumnDefinitions="200,*,Auto,Auto">
+              <ComboBox Grid.Column="0" ItemsSource="{Binding FilterFields}" SelectedItem="{Binding SelectedFilterField}" />
+              <TextBox Grid.Column="1" Margin="4,0,0,0" Watermark="{Binding [Label.FilterWatermark]}" Text="{Binding FilterValue}" />
+              <Button Grid.Column="2" Margin="4,0,0,0" Content="{Binding [Button.Apply]}" Command="{Binding ApplyFilterCommand}" />
+              <Button Grid.Column="3" Margin="4,0,0,0" Content="{Binding [Button.Clear]}" Command="{Binding ClearFilterCommand}" />
+            </Grid>
 
-          <Grid Grid.Row="2" RowDefinitions="Auto,Auto" Margin="0,0,0,4">
-            <TextBlock Text="{Binding ConditionSummary}" Opacity="0.85" />
-            <ListBox Grid.Row="1"
-                     Margin="0,4,0,0"
-                     Height="82"
-                     BorderThickness="0"
-                     Background="Transparent"
-                     ItemsSource="{Binding FilterConditions}"
-                     SelectedItem="{Binding SelectedFilterCondition}">
-              <ListBox.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <WrapPanel />
-                  </ItemsPanelTemplate>
-              </ListBox.ItemsPanel>
-              <ListBox.ItemTemplate>
-                  <DataTemplate>
-                    <Border Classes="chip">
-                      <TextBlock Text="{Binding DisplayText}" TextTrimming="CharacterEllipsis" MaxWidth="280" />
-                    </Border>
-                  </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </Grid>
+            <Grid Grid.Row="2">
+              <DataGrid IsReadOnly="True"
+                        CanUserResizeColumns="True"
+                        CanUserSortColumns="True"
+                        MaxColumnWidth="420"
+                        MinColumnWidth="80"
+                        ColumnWidth="Auto"
+                        AutoGenerateColumns="False"
+                        ItemsSource="{Binding PagedRecords}">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Id" Binding="{Binding Id}" Width="100" />
+                  <DataGridCheckBoxColumn Header="IsDeleted" Binding="{Binding IsDeleted}" Width="120" />
+                  <DataGridTextColumn Header="PayloadUtf8Preview" Binding="{Binding PayloadUtf8Preview}" Width="*" />
+                  <DataGridTextColumn Header="PayloadHex" Binding="{Binding PayloadHex}" Width="2*" />
+                </DataGrid.Columns>
+              </DataGrid>
 
-          <Grid Grid.Row="3">
-            <DataGrid AutoGenerateColumns="True"
-                      IsReadOnly="True"
-                      CanUserSortColumns="True"
-                      IsVisible="{Binding HasData}"
-                      ItemsSource="{Binding PagedItems}" />
-            <Border IsVisible="{Binding HasNoData}" CornerRadius="8" Background="{DynamicResource ThemeControlLowBrush}" Padding="12" Margin="4">
-              <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
-                <TextBlock Text="{Binding LabelNoDataTitle}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock Text="{Binding EmptyStateMessage}" Classes="metaText" HorizontalAlignment="Center" />
-              </StackPanel>
-            </Border>
-          </Grid>
+              <Border IsVisible="{Binding HasNoData}" CornerRadius="8" Background="{DynamicResource ThemeControlLowBrush}" Padding="12" Margin="4">
+                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
+                  <TextBlock Text="{Binding [Label.NoDataTitle]}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                  <TextBlock Text="{Binding EmptyStateMessage}" Classes="metaText" HorizontalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </Grid>
 
-          <Grid Grid.Row="4" Margin="0,4,0,0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,12,Auto,*">
-            <Button Grid.Column="0" Content="{Binding BtnFirstPage}" Command="{Binding FirstPageCommand}" />
-            <Button Grid.Column="1" Margin="4,0,0,0" Content="{Binding BtnPrevPage}" Command="{Binding PreviousPageCommand}" />
-            <Button Grid.Column="2" Margin="4,0,0,0" Content="{Binding BtnNextPage}" Command="{Binding NextPageCommand}" />
-            <Button Grid.Column="3" Margin="4,0,0,0" Content="{Binding BtnLastPage}" Command="{Binding LastPageCommand}" />
-            <ComboBox Grid.Column="4" Margin="4,0,0,0" Width="90" SelectedItem="{Binding PageSize}" ItemsSource="{Binding PageSizeOptions}" />
+            <Grid Grid.Row="3" Margin="0,4,0,0" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,12,Auto,*">
+              <Button Grid.Column="0" Content="{Binding [Button.FirstPage]}" Command="{Binding FirstPageCommand}" />
+              <Button Grid.Column="1" Margin="4,0,0,0" Content="{Binding [Button.PrevPage]}" Command="{Binding PreviousPageCommand}" />
+              <Button Grid.Column="2" Margin="4,0,0,0" Content="{Binding [Button.NextPage]}" Command="{Binding NextPageCommand}" />
+              <Button Grid.Column="3" Margin="4,0,0,0" Content="{Binding [Button.LastPage]}" Command="{Binding LastPageCommand}" />
+              <ComboBox Grid.Column="4" Margin="4,0,0,0" Width="90" SelectedItem="{Binding PageSize}" ItemsSource="{Binding PageSizeOptions}" />
 
-            <TextBlock Grid.Column="6"
-                       VerticalAlignment="Center"
-                       Text="{Binding PageSummary}" />
+              <TextBlock Grid.Column="6"
+                         VerticalAlignment="Center"
+                         Text="{Binding PageSummary}" />
 
-            <TextBlock Grid.Column="7"
-                       Margin="4,0,0,0"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       Classes="metaText"
-                       Text="{Binding FilterSummary}" />
-          </Grid>
+              <TextBlock Grid.Column="7"
+                         Margin="4,0,0,0"
+                         HorizontalAlignment="Right"
+                         VerticalAlignment="Center"
+                         Classes="metaText"
+                         Text="{Binding FilterSummary}" />
+            </Grid>
           </Grid>
 
           <Border IsVisible="{Binding IsDisconnected}" CornerRadius="8" Background="{DynamicResource ThemeControlLowBrush}" Padding="12" Margin="4">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="6">
-              <TextBlock Text="{Binding LabelNoConnection}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding [Label.NoConnection]}" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
               <TextBlock Text="{Binding SelectedConnectionPathDisplay}" Classes="metaText" HorizontalAlignment="Center" />
             </StackPanel>
           </Border>
@@ -260,5 +239,6 @@
             CornerRadius="6">
       <TextBlock Text="{Binding StatusMessage}" />
     </Border>
+
   </Grid>
 </Window>

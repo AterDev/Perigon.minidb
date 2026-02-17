@@ -1,5 +1,4 @@
-﻿using System.IO;
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,39 +27,15 @@ public partial class App : Avalonia.Application
             desktop.MainWindow = new MainWindow();
         }
 
-        EnsureSampleDatabase();
-
         base.OnFrameworkInitializationCompleted();
     }
 
     private static void ConfigureServices(IServiceCollection services)
     {
-        services.AddLocalization(options => options.ResourcesPath = "Resources/Localization");
         services.AddSingleton<DatabaseConnectionService>();
         services.AddSingleton<ClientSettingsService>();
-        services.AddSingleton<MainViewModel>();
-    }
-
-    private static void EnsureSampleDatabase()
-    {
-        var appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "Perigon.MiniDb.Sample");
-
-        Directory.CreateDirectory(appDataPath);
-        var sampleDbPath = Path.Combine(appDataPath, "sample.mds");
-
-        if (!File.Exists(sampleDbPath))
-        {
-            try
-            {
-                Sample.SampleDbContext.CreateSampleDatabaseAsync(sampleDbPath).GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to create sample database: {ex.Message}");
-            }
-        }
+        services.AddSingleton<TableDataStateService>();
+        services.AddSingleton<MainViewModelV2>();
     }
 }
 

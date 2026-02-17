@@ -54,4 +54,83 @@
   <data name="小于等于" xml:space="preserve"><value>Less or equal</value></data>
   <data name="区间" xml:space="preserve"><value>Between</value></data>
   <data name="语言已切换" xml:space="preserve"><value>Language changed</value></data>
+  <data name="App.Title" xml:space="preserve"><value>Perigon MiniDB Manager</value></data>
+  <data name="Window.ConnectionManager.Title" xml:space="preserve"><value>Manage connections</value></data>
+  <data name="Menu.Connection" xml:space="preserve"><value>Connection</value></data>
+  <data name="Menu.ManageConnections" xml:space="preserve"><value>Manage connections...</value></data>
+  <data name="Menu.Appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="Menu.Theme.Light" xml:space="preserve"><value>Light</value></data>
+  <data name="Menu.Theme.Dark" xml:space="preserve"><value>Dark</value></data>
+  <data name="Menu.Theme.System" xml:space="preserve"><value>Follow system</value></data>
+  <data name="Menu.ToggleGlass" xml:space="preserve"><value>Enable glass effect</value></data>
+  <data name="Menu.Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Menu.Help" xml:space="preserve"><value>Help</value></data>
+  <data name="Menu.OpenRepo" xml:space="preserve"><value>Open repository</value></data>
+  <data name="Menu.OpenIssues" xml:space="preserve"><value>Open issues</value></data>
+  <data name="Section.Tables" xml:space="preserve"><value>Tables</value></data>
+  <data name="Section.ConnectionConfig" xml:space="preserve"><value>Connection configuration</value></data>
+  <data name="Label.SearchTableWatermark" xml:space="preserve"><value>Search tables</value></data>
+  <data name="Label.SearchConnectionWatermark" xml:space="preserve"><value>Search connections</value></data>
+  <data name="Label.ConnectionNameWatermark" xml:space="preserve"><value>Connection name</value></data>
+  <data name="Label.DbPathWatermark" xml:space="preserve"><value>Database file path (*.mds)</value></data>
+  <data name="Label.FilterWatermark" xml:space="preserve"><value>Enter text to match</value></data>
+  <data name="Label.NoDataTitle" xml:space="preserve"><value>No data to display</value></data>
+  <data name="Label.NoConnection" xml:space="preserve"><value>Open a database from Connection &gt; Manage connections first</value></data>
+  <data name="Label.NotSelectedTable" xml:space="preserve"><value>No table selected</value></data>
+  <data name="Label.NoSelectedConnection" xml:space="preserve"><value>No connection selected</value></data>
+  <data name="Label.AddOrSelectConnectionFirst" xml:space="preserve"><value>Add or select a connection first</value></data>
+  <data name="Label.SelectTableToView" xml:space="preserve"><value>Select a table on the left to view data</value></data>
+  <data name="Label.NoDataForFilter" xml:space="preserve"><value>No data for current filter conditions</value></data>
+  <data name="Status.Ready" xml:space="preserve"><value>Ready.</value></data>
+  <data name="Status.Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Status.Disconnected" xml:space="preserve"><value>Disconnected</value></data>
+  <data name="Status.LanguageChanged" xml:space="preserve"><value>Language changed</value></data>
+  <data name="Button.Connect" xml:space="preserve"><value>Connect</value></data>
+  <data name="Button.Disconnect" xml:space="preserve"><value>Disconnect</value></data>
+  <data name="Button.CreateSample" xml:space="preserve"><value>Create sample DB</value></data>
+  <data name="Button.ResetView" xml:space="preserve"><value>Reset view</value></data>
+  <data name="Button.Apply" xml:space="preserve"><value>Apply</value></data>
+  <data name="Button.Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="Button.FirstPage" xml:space="preserve"><value>First</value></data>
+  <data name="Button.PrevPage" xml:space="preserve"><value>Previous</value></data>
+  <data name="Button.NextPage" xml:space="preserve"><value>Next</value></data>
+  <data name="Button.LastPage" xml:space="preserve"><value>Last</value></data>
+  <data name="Button.Browse" xml:space="preserve"><value>Browse</value></data>
+  <data name="Button.Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Button.Update" xml:space="preserve"><value>Update</value></data>
+  <data name="Button.Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="Button.Close" xml:space="preserve"><value>Close</value></data>
+  <data name="Dialog.SelectMiniDbFile" xml:space="preserve"><value>Select MiniDB file</value></data>
+  <data name="Dialog.CreateSampleDb" xml:space="preserve"><value>Create sample database</value></data>
+  <data name="Message.SelectConnectionFirst" xml:space="preserve"><value>Please select a connection first.</value></data>
+  <data name="Message.ConnectionAdded" xml:space="preserve"><value>Connection '{0}' added.</value></data>
+  <data name="Message.ConnectionUpdated" xml:space="preserve"><value>Connection '{0}' updated.</value></data>
+  <data name="Message.ConnectionDeleted" xml:space="preserve"><value>Connection '{0}' deleted.</value></data>
+  <data name="Message.AddConnectionFailed" xml:space="preserve"><value>Failed to add connection: {0}</value></data>
+  <data name="Message.UpdateConnectionFailed" xml:space="preserve"><value>Failed to update connection: {0}</value></data>
+  <data name="Message.DeleteConnectionFailed" xml:space="preserve"><value>Failed to delete connection: {0}</value></data>
+  <data name="Message.DatabaseFileNotFound" xml:space="preserve"><value>Database file not found.</value></data>
+  <data name="Message.DatabaseFileNotFoundWithPath" xml:space="preserve"><value>Database file not found: {0}</value></data>
+  <data name="Message.ConnectedTo" xml:space="preserve"><value>Connected: {0}</value></data>
+  <data name="Message.ConnectionFailed" xml:space="preserve"><value>Connection failed: {0}</value></data>
+  <data name="Message.ReleaseCacheFailed" xml:space="preserve"><value>Failed to release shared cache: {0}</value></data>
+  <data name="Message.Disconnected" xml:space="preserve"><value>Disconnected.</value></data>
+  <data name="Message.ReadTableDataFailed" xml:space="preserve"><value>Failed to read table data: {0}</value></data>
+  <data name="Message.LoadTableDataFailed" xml:space="preserve"><value>Failed to load table data: {0}</value></data>
+  <data name="Message.LoadedTableWithCount" xml:space="preserve"><value>Loaded '{0}' with {1} records.</value></data>
+  <data name="Message.FilterCompleted" xml:space="preserve"><value>Filter completed: {0}/{1}.</value></data>
+  <data name="Message.FilterCleared" xml:space="preserve"><value>Filter cleared.</value></data>
+  <data name="Message.SampleDbCreated" xml:space="preserve"><value>Sample database created: {0}</value></data>
+  <data name="Message.SampleDbCreateFailed" xml:space="preserve"><value>Failed to create sample database: {0}</value></data>
+  <data name="Message.UnableToGetTargetPath" xml:space="preserve"><value>Unable to get target file path.</value></data>
+  <data name="Message.RepositoryOpened" xml:space="preserve"><value>Repository opened in browser.</value></data>
+  <data name="Message.OpenRepositoryFailed" xml:space="preserve"><value>Failed to open repository: {0}</value></data>
+  <data name="Message.IssuesOpened" xml:space="preserve"><value>Issues page opened.</value></data>
+  <data name="Message.OpenIssuesFailed" xml:space="preserve"><value>Failed to open issues page: {0}</value></data>
+  <data name="Format.TableTitle" xml:space="preserve"><value>Table: {0}</value></data>
+  <data name="Format.PageSummary" xml:space="preserve"><value>Page {0}/{1}, {2} per page</value></data>
+  <data name="Format.FilterSummary" xml:space="preserve"><value>Showing {0} items ({1} after filter)</value></data>
+  <data name="Format.TableCount" xml:space="preserve"><value>{0} tables</value></data>
+  <data name="Format.FilteredCount" xml:space="preserve"><value>Filtered {0}</value></data>
+  <data name="Format.RawCount" xml:space="preserve"><value>Raw {0}</value></data>
 </root>
