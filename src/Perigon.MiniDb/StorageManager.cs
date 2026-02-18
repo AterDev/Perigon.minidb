@@ -37,13 +37,18 @@ internal class StorageManager
     private const int HEADER_RESERVED_REMAINING_BYTES = HEADER_RESERVED_BYTES - sizeof(long);
     private const int EXTENT_DIRECTORY_OFFSET_SIZE = sizeof(long);
     private const int EXTENT_COUNT_SIZE = sizeof(int);
-    private const int TABLE_META_RESERVED_REMAINING_BYTES = 40 - EXTENT_DIRECTORY_OFFSET_SIZE - EXTENT_COUNT_SIZE;
+    private const int FIELD_META_OFFSET_SIZE = sizeof(long);
+    private const int FIELD_COUNT_SIZE = sizeof(int);
+    private const int TABLE_META_RESERVED_REMAINING_BYTES = 40 - EXTENT_DIRECTORY_OFFSET_SIZE - EXTENT_COUNT_SIZE - FIELD_META_OFFSET_SIZE - FIELD_COUNT_SIZE;
+    private const int FIELD_META_ENTRY_SIZE = 80;
+    private const int FIELD_NAME_BYTES = 64;
 
     private readonly string _filePath;
     private readonly FileWriteQueue _writeQueue;
     private readonly Dictionary<string, TableMetadata> _tables = [];
     private readonly Dictionary<string, List<long>> _tableExtentStarts = [];
     private readonly Dictionary<string, long> _tableExtentDirectoryOffsets = [];
+    private readonly Dictionary<string, (long Offset, int Count)> _tableFieldMetadataInfo = [];
     private FrozenDictionary<Type, EntityMetadata> _entityMetadataCache = FrozenDictionary<Type, EntityMetadata>.Empty;
     private long _knownGlobalWriteVersion;
 
@@ -89,34 +94,68 @@ internal class StorageManager
 
         _knownGlobalWriteVersion = 0;
 
-        long currentOffset = FILE_HEADER_SIZE + (tableTypes.Count * TABLE_META_SIZE);
-
-        // Build metadata cache
+        // Phase 1: Build entity metadata for all tables
         var metadataBuilder = new Dictionary<Type, EntityMetadata>();
+        var tableList = new List<(string Name, Type Type, EntityMetadata EntityMeta)>();
 
-        // Write table metadata
-        int tableIndex = 0;
         foreach (var kvp in tableTypes)
         {
-            var metadata = EntityMetadata.Create(kvp.Value);
-            metadataBuilder[kvp.Value] = metadata;
+            var entityMeta = EntityMetadata.Create(kvp.Value);
+            metadataBuilder[kvp.Value] = entityMeta;
+            tableList.Add((kvp.Key, kvp.Value, entityMeta));
+        }
 
+        // Phase 2: Calculate offsets — field metadata sections come before data areas
+        long currentOffset = FILE_HEADER_SIZE + (tableList.Count * TABLE_META_SIZE);
+
+        // Reserve space for field metadata sections
+        foreach (var (name, _, entityMeta) in tableList)
+        {
+            if (entityMeta.Fields.Length > 0)
+            {
+                _tableFieldMetadataInfo[name] = (currentOffset, entityMeta.Fields.Length);
+                currentOffset += entityMeta.Fields.Length * FIELD_META_ENTRY_SIZE;
+            }
+            else
+            {
+                _tableFieldMetadataInfo[name] = (0, 0);
+            }
+        }
+
+        // Assign data start offsets (after all field metadata sections)
+        int tableIndex = 0;
+        foreach (var (name, _, entityMeta) in tableList)
+        {
             var tableMetadata = new TableMetadata
             {
-                TableName = kvp.Key,
+                TableName = name,
                 RecordCount = 0,
-                RecordSize = metadata.RecordSize,
+                RecordSize = entityMeta.RecordSize,
                 DataStartOffset = currentOffset,
                 ReservedRecordCount = EXTENT_RECORD_GROWTH,
                 TableIndex = tableIndex
             };
-            _tables[kvp.Key] = tableMetadata;
-            _tableExtentStarts[kvp.Key] = [currentOffset];
-            _tableExtentDirectoryOffsets[kvp.Key] = 0;
+            _tables[name] = tableMetadata;
+            _tableExtentStarts[name] = [currentOffset];
+            _tableExtentDirectoryOffsets[name] = 0;
 
-            WriteTableMetadata(writer, tableMetadata);
             tableIndex++;
-            currentOffset += metadata.RecordSize * tableMetadata.ReservedRecordCount;
+            currentOffset += entityMeta.RecordSize * EXTENT_RECORD_GROWTH;
+        }
+
+        // Phase 3: Write table metadata entries (includes field metadata offsets)
+        foreach (var (name, _, _) in tableList)
+        {
+            WriteTableMetadata(writer, _tables[name]);
+        }
+
+        // Phase 4: Write field metadata sections
+        foreach (var (name, _, entityMeta) in tableList)
+        {
+            if (entityMeta.Fields.Length > 0)
+            {
+                WriteFieldMetadata(writer, entityMeta);
+            }
         }
 
         // Freeze the metadata cache after initialization
@@ -149,9 +188,45 @@ internal class StorageManager
         writer.Write(extentDirectoryOffset);
         writer.Write(extentCount);
 
+        var fieldMetaInfo = _tableFieldMetadataInfo.GetValueOrDefault(metadata.TableName, (0L, 0));
+        writer.Write(fieldMetaInfo.Item1);
+        writer.Write(fieldMetaInfo.Item2);
+
         Span<byte> reserved = stackalloc byte[TABLE_META_RESERVED_REMAINING_BYTES];
         reserved.Clear();
         writer.Write(reserved);
+    }
+
+    private static void WriteFieldMetadata(BinaryWriter writer, EntityMetadata entityMetadata)
+    {
+        Span<byte> nameBuffer = stackalloc byte[FIELD_NAME_BYTES];
+        Span<byte> fieldReserved = stackalloc byte[7];
+
+        foreach (var field in entityMetadata.Fields)
+        {
+            nameBuffer.Clear();
+            Encoding.UTF8.GetBytes(field.Property.Name, nameBuffer);
+            writer.Write(nameBuffer);
+
+            writer.Write((int)GetFieldTypeCode(field.Property.PropertyType));
+            writer.Write(field.Size);
+            writer.Write(Nullable.GetUnderlyingType(field.Property.PropertyType) != null ? (byte)1 : (byte)0);
+
+            fieldReserved.Clear();
+            writer.Write(fieldReserved);
+        }
+    }
+
+    private static FieldTypeCode GetFieldTypeCode(Type type)
+    {
+        var underlying = Nullable.GetUnderlyingType(type) ?? type;
+        if (underlying == typeof(int)) return FieldTypeCode.Int32;
+        if (underlying == typeof(bool)) return FieldTypeCode.Boolean;
+        if (underlying == typeof(decimal)) return FieldTypeCode.Decimal;
+        if (underlying == typeof(DateTime)) return FieldTypeCode.DateTime;
+        if (underlying == typeof(string)) return FieldTypeCode.String;
+        if (underlying.IsEnum) return FieldTypeCode.Enum;
+        return FieldTypeCode.Unknown;
     }
 
     private void LoadDatabase()
@@ -159,6 +234,7 @@ internal class StorageManager
         _tables.Clear();
         _tableExtentStarts.Clear();
         _tableExtentDirectoryOffsets.Clear();
+        _tableFieldMetadataInfo.Clear();
 
         using var file = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new BinaryReader(file);
@@ -190,6 +266,8 @@ internal class StorageManager
             var tableIndex = reader.ReadInt32();
             var extentDirectoryOffset = reader.ReadInt64();
             var extentCount = reader.ReadInt32();
+            var fieldMetadataOffset = reader.ReadInt64();
+            var fieldCount = reader.ReadInt32();
             reader.ReadBytes(TABLE_META_RESERVED_REMAINING_BYTES); // Skip reserved
 
             _tables[tableName] = new TableMetadata
@@ -202,6 +280,7 @@ internal class StorageManager
                 TableIndex = tableIndex
             };
 
+            _tableFieldMetadataInfo[tableName] = (fieldMetadataOffset, fieldCount);
             pendingExtentMeta.Add((tableName, extentDirectoryOffset, extentCount));
         }
 
@@ -486,6 +565,8 @@ internal class StorageManager
         reader.ReadBytes(HEADER_RESERVED_REMAINING_BYTES); // Skip remaining reserved
 
         var latest = new Dictionary<string, TableMetadata>(tableCount, StringComparer.Ordinal);
+        var pendingExtentMeta = new List<(string TableName, long DirectoryOffset, int ExtentCount)>();
+
         for (int i = 0; i < tableCount; i++)
         {
             var nameBytes = reader.ReadBytes(64);
@@ -495,7 +576,11 @@ internal class StorageManager
             var dataStartOffset = reader.ReadInt64();
             var reservedRecordCount = reader.ReadInt32();
             var tableIndex = reader.ReadInt32();
-            reader.ReadBytes(40); // Skip reserved
+            var extentDirectoryOffset = reader.ReadInt64();
+            var extentCount = reader.ReadInt32();
+            var fieldMetadataOffset = reader.ReadInt64();
+            var fieldCount = reader.ReadInt32();
+            reader.ReadBytes(TABLE_META_RESERVED_REMAINING_BYTES); // Skip remaining reserved
 
             latest[name] = new TableMetadata
             {
@@ -506,11 +591,28 @@ internal class StorageManager
                 ReservedRecordCount = reservedRecordCount > 0 ? reservedRecordCount : EXTENT_RECORD_GROWTH,
                 TableIndex = tableIndex
             };
+
+            _tableFieldMetadataInfo[name] = (fieldMetadataOffset, fieldCount);
+            pendingExtentMeta.Add((name, extentDirectoryOffset, extentCount));
         }
 
         foreach (var (name, metadata) in latest)
         {
             _tables[name] = metadata;
+        }
+
+        foreach (var (tableName, directoryOffset, extentCount) in pendingExtentMeta)
+        {
+            _tableExtentDirectoryOffsets[tableName] = directoryOffset;
+
+            if (extentCount > 1 && directoryOffset > 0)
+            {
+                _tableExtentStarts[tableName] = ReadExtentStarts(reader, directoryOffset, extentCount);
+            }
+            else
+            {
+                _tableExtentStarts[tableName] = [_tables[tableName].DataStartOffset];
+            }
         }
     }
 

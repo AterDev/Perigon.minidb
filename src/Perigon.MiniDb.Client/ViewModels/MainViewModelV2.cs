@@ -1,8 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Resources;
+using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Perigon.MiniDb.Client.Models;
@@ -23,51 +24,14 @@ public partial class MainViewModelV2 : ObservableObject
 
     private readonly DatabaseConnectionService _connectionService;
     private readonly ClientSettingsService _settingsService;
-    private readonly TableDataStateService _tableDataState;
-    private static readonly ResourceManager ResourceManager =
-        new("Perigon.MiniDb.Client.Resources.Localization.AppStrings", typeof(MainViewModelV2).Assembly);
 
     private CancellationTokenSource? _statusResetCts;
     private List<string> _allTableNames = [];
-    private static readonly string[] XamlLocalizationKeys =
-    [
-        AppStrings.Keys.AppTitle,
-        AppStrings.Keys.MenuConnection,
-        AppStrings.Keys.MenuManageConnections,
-        AppStrings.Keys.ButtonConnect,
-        AppStrings.Keys.ButtonDisconnect,
-        AppStrings.Keys.MenuAppearance,
-        AppStrings.Keys.MenuLightTheme,
-        AppStrings.Keys.MenuDarkTheme,
-        AppStrings.Keys.MenuSystemTheme,
-        AppStrings.Keys.MenuLanguage,
-        AppStrings.Keys.MenuHelp,
-        AppStrings.Keys.MenuOpenRepo,
-        AppStrings.Keys.MenuOpenIssues,
-        AppStrings.Keys.SectionTables,
-        AppStrings.Keys.LabelSearchTableWatermark,
-        AppStrings.Keys.LabelFilterWatermark,
-        AppStrings.Keys.LabelNoDataTitle,
-        AppStrings.Keys.LabelNoConnection,
-        AppStrings.Keys.ButtonApply,
-        AppStrings.Keys.ButtonClear,
-        AppStrings.Keys.ButtonFirstPage,
-        AppStrings.Keys.ButtonPrevPage,
-        AppStrings.Keys.ButtonNextPage,
-        AppStrings.Keys.ButtonLastPage,
-        AppStrings.Keys.WindowConnectionManagerTitle,
-        AppStrings.Keys.SectionConnectionConfig,
-        AppStrings.Keys.LabelSearchConnectionWatermark,
-        AppStrings.Keys.LabelConnectionNameWatermark,
-        AppStrings.Keys.LabelDbPathWatermark,
-        AppStrings.Keys.ButtonBrowse,
-        AppStrings.Keys.ButtonAdd,
-        AppStrings.Keys.ButtonUpdate,
-        AppStrings.Keys.ButtonDelete,
-        AppStrings.Keys.ButtonClose
-    ];
 
-    private int _pageSize = 25;
+    /// <summary>
+    /// All records from the current table (unfiltered).
+    /// </summary>
+    private List<DynamicRecord> _allRecords = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedConnectionDisplay))]
@@ -109,6 +73,17 @@ public partial class MainViewModelV2 : ObservableObject
     private string _statusMessage = "准备就绪";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsChinese))]
+    [NotifyPropertyChangedFor(nameof(IsEnglish))]
+    [NotifyPropertyChangedFor(nameof(ConnectionBadge))]
+    [NotifyPropertyChangedFor(nameof(SelectedConnectionDisplay))]
+    [NotifyPropertyChangedFor(nameof(SelectedConnectionPathDisplay))]
+    [NotifyPropertyChangedFor(nameof(EmptyStateMessage))]
+    [NotifyPropertyChangedFor(nameof(TableTitle))]
+    [NotifyPropertyChangedFor(nameof(FilterSummary))]
+    [NotifyPropertyChangedFor(nameof(LabelTableCount))]
+    [NotifyPropertyChangedFor(nameof(LabelFilteredCount))]
+    [NotifyPropertyChangedFor(nameof(LabelRawCount))]
     private string _languagePreference = "zh-CN";
 
     [ObservableProperty]
@@ -126,40 +101,34 @@ public partial class MainViewModelV2 : ObservableObject
     public ObservableCollection<DatabaseConnection> Connections { get; } = new();
     public ObservableCollection<string> TableNames { get; } = new();
     public ObservableCollection<string> FilterFields { get; } = new();
-    public ObservableCollection<int> PageSizeOptions { get; } = [10, 25, 50, 100];
-    public ObservableCollection<TableDataStateService.RawTableRecord> PagedRecords { get; } = new();
+
+    /// <summary>
+    /// Records displayed in the DataGrid (filtered view).
+    /// DataGrid uses its built-in virtual scrolling — no manual pagination needed.
+    /// </summary>
+    public ObservableCollection<DynamicRecord> DisplayRecords { get; } = new();
+
+    /// <summary>
+    /// Current field names for dynamic DataGrid column generation.
+    /// Code-behind listens for changes to regenerate columns.
+    /// </summary>
+    [ObservableProperty]
+    private List<string> _currentFieldNames = [];
 
     private string ReadyStatus => T(AppStrings.Keys.StatusReady);
 
     public bool IsDisconnected => !IsConnected;
 
-    public int PageSize
-    {
-        get => _pageSize;
-        set
-        {
-            if (SetProperty(ref _pageSize, value))
-            {
-                _tableDataState.SetPageSize(value);
-                RefreshPagedItems();
-            }
-        }
-    }
-
-    public int PageIndex => _tableDataState.PageIndex;
-    public int TotalCount => _tableDataState.TotalCount;
-    public int TotalPages => _tableDataState.TotalPages;
     public string TableTitle => string.IsNullOrWhiteSpace(SelectedTableName)
         ? T(AppStrings.Keys.LabelNotSelectedTable)
         : Tf(AppStrings.Keys.FormatTableTitle, SelectedTableName);
-    public string PageSummary => Tf(AppStrings.Keys.FormatPageSummary, PageIndex, TotalPages, PageSize);
-    public string FilterSummary => Tf(AppStrings.Keys.FormatFilterSummary, PagedRecords.Count, TotalCount);
+    public string FilterSummary => Tf(AppStrings.Keys.FormatFilterSummary, DisplayRecords.Count, _allRecords.Count);
     public string ConnectionBadge => IsConnected ? T(AppStrings.Keys.StatusConnected) : T(AppStrings.Keys.StatusDisconnected);
     public string SelectedConnectionDisplay => SelectedConnection?.Name ?? T(AppStrings.Keys.LabelNoSelectedConnection);
     public string SelectedConnectionPathDisplay => SelectedConnection?.Path ?? T(AppStrings.Keys.LabelAddOrSelectConnectionFirst);
     public int TableCount => TableNames.Count;
-    public int RawCount => _tableDataState.RawCount;
-    public bool HasData => PagedRecords.Count > 0;
+    public int RawCount => _allRecords.Count;
+    public bool HasData => DisplayRecords.Count > 0;
     public bool HasNoData => !HasData;
 
     public string EmptyStateMessage => string.IsNullOrWhiteSpace(SelectedTableName)
@@ -167,38 +136,23 @@ public partial class MainViewModelV2 : ObservableObject
         : T(AppStrings.Keys.LabelNoDataForFilter);
 
     public string LabelTableCount => Tf(AppStrings.Keys.FormatTableCount, TableCount);
-    public string LabelFilteredCount => Tf(AppStrings.Keys.FormatFilteredCount, TotalCount);
+    public string LabelFilteredCount => Tf(AppStrings.Keys.FormatFilteredCount, DisplayRecords.Count);
     public string LabelRawCount => Tf(AppStrings.Keys.FormatRawCount, RawCount);
-
-    public string MenuConnectionText => T(AppStrings.Keys.MenuConnection);
-    public string MenuManageConnectionsText => T(AppStrings.Keys.MenuManageConnections);
-    public string MenuAppearanceText => T(AppStrings.Keys.MenuAppearance);
-    public string MenuLightThemeText => T(AppStrings.Keys.MenuLightTheme);
-    public string MenuDarkThemeText => T(AppStrings.Keys.MenuDarkTheme);
-    public string MenuSystemThemeText => T(AppStrings.Keys.MenuSystemTheme);
-    public string MenuLanguageText => T(AppStrings.Keys.MenuLanguage);
-    public string MenuHelpText => T(AppStrings.Keys.MenuHelp);
-    public string MenuOpenRepoText => T(AppStrings.Keys.MenuOpenRepo);
-    public string MenuOpenIssuesText => T(AppStrings.Keys.MenuOpenIssues);
-
-    public string this[string key] => T(key);
 
     public bool IsChinese => !LanguagePreference.StartsWith("en", StringComparison.OrdinalIgnoreCase);
     public bool IsEnglish => LanguagePreference.StartsWith("en", StringComparison.OrdinalIgnoreCase);
 
     public MainViewModelV2()
-        : this(new DatabaseConnectionService(), new ClientSettingsService(), new TableDataStateService())
+        : this(new DatabaseConnectionService(), new ClientSettingsService())
     {
     }
 
     public MainViewModelV2(
         DatabaseConnectionService connectionService,
-        ClientSettingsService settingsService,
-        TableDataStateService tableDataState)
+        ClientSettingsService settingsService)
     {
         _connectionService = connectionService;
         _settingsService = settingsService;
-        _tableDataState = tableDataState;
 
         var settings = _settingsService.Load();
         _themePreference = settings.ThemePreference;
@@ -206,7 +160,7 @@ public partial class MainViewModelV2 : ObservableObject
         _languagePreference = settings.LanguagePreference;
 
         ApplyCulture(_languagePreference);
-        _tableDataState.SetPageSize(_pageSize);
+        App.SwitchLanguage(_languagePreference);
 
         TableNames.CollectionChanged += OnTableNamesChanged;
         _connectionService.Connections.CollectionChanged += (_, _) => ApplyConnectionFilter();
@@ -251,18 +205,9 @@ public partial class MainViewModelV2 : ObservableObject
     partial void OnLanguagePreferenceChanged(string value)
     {
         ApplyCulture(value);
-        RaiseLocalizationChanged();
+        App.SwitchLanguage(value);
+        SetStatus(ReadyStatus, StatusLevel.Neutral, autoReset: false);
         SaveSettings();
-    }
-
-    partial void OnSelectedFilterFieldChanged(string? value)
-    {
-        _tableDataState.SetFilterField(value);
-    }
-
-    partial void OnFilterValueChanged(string value)
-    {
-        _tableDataState.SetFilterValue(value);
     }
 
     partial void OnNewConnectionNameChanged(string value)
@@ -369,16 +314,6 @@ public partial class MainViewModelV2 : ObservableObject
         SetStatus(message, StatusLevel.Error);
     }
 
-    public void ResetViewPreferences()
-    {
-        ThemePreference = "System";
-        IsGlassEffectEnabled = true;
-        LanguagePreference = "zh-CN";
-        ConnectionSearchText = string.Empty;
-        TableSearchText = string.Empty;
-        PageSize = 25;
-    }
-
     public bool OpenSelectedConnection()
     {
         if (SelectedConnection is null)
@@ -401,10 +336,6 @@ public partial class MainViewModelV2 : ObservableObject
     private bool CanRefreshTable() => IsConnected && !string.IsNullOrWhiteSpace(SelectedTableName);
     private bool CanApplyFilter() => CanRefreshTable();
     private bool CanClearFilter() => CanRefreshTable();
-    private bool CanFirstPage() => _tableDataState.CanFirstPage();
-    private bool CanPreviousPage() => _tableDataState.CanPreviousPage();
-    private bool CanNextPage() => _tableDataState.CanNextPage();
-    private bool CanLastPage() => _tableDataState.CanLastPage();
 
     [RelayCommand(CanExecute = nameof(CanAddConnection))]
     private void AddConnection()
@@ -495,10 +426,20 @@ public partial class MainViewModelV2 : ObservableObject
                 return;
             }
 
-            var tableNames = TableDataStateService.GetTableNamesFromFile(dbPath, out var tableError);
+            var tableNames = MiniDbFileReader.GetTableNames(dbPath, out var tableError);
             if (tableError is not null)
             {
                 ShowError(Tf(AppStrings.Keys.MessageConnectionFailed, tableError));
+                IsConnected = false;
+                return;
+            }
+
+            var invalidTables = MiniDbFileReader.ValidateFieldMetadata(dbPath);
+            if (invalidTables is not null)
+            {
+                SelectedConnection.LastConnectionError = T(AppStrings.Keys.MessageUnsupportedFileFormat);
+                _connectionService.SaveConnections();
+                ShowError(Tf(AppStrings.Keys.MessageUnsupportedFileFormatDetail, invalidTables));
                 IsConnected = false;
                 return;
             }
@@ -526,10 +467,8 @@ public partial class MainViewModelV2 : ObservableObject
         TableNames.Clear();
         _allTableNames.Clear();
         FilterFields.Clear();
-        PagedRecords.Clear();
-
-        _tableDataState.Reset();
-        _tableDataState.SetPageSize(PageSize);
+        DisplayRecords.Clear();
+        _allRecords.Clear();
 
         SelectedTableName = null;
         SelectedFilterField = null;
@@ -538,7 +477,7 @@ public partial class MainViewModelV2 : ObservableObject
 
         ShowSuccess(T(AppStrings.Keys.MessageDisconnected));
 
-        NotifyPagingStateChanged();
+        NotifyDataStateChanged();
     }
 
     private void LoadTableNames(List<string> tableNames)
@@ -557,35 +496,59 @@ public partial class MainViewModelV2 : ObservableObject
 
     private void LoadTableData()
     {
+        Debug.WriteLine($"[MiniDb] LoadTableData called. Connection={SelectedConnection?.Path}, Table={SelectedTableName}");
+
         if (string.IsNullOrWhiteSpace(SelectedConnection?.Path) || string.IsNullOrWhiteSpace(SelectedTableName))
         {
-            _tableDataState.Reset();
-            _tableDataState.SetPageSize(PageSize);
+            Debug.WriteLine("[MiniDb] LoadTableData: skipped (no connection or table)");
+            _allRecords.Clear();
             FilterFields.Clear();
-            RefreshPagedItems();
+            CurrentFieldNames = [];
+            RefreshDisplayRecords();
             return;
         }
 
         try
         {
             var dbPath = Path.GetFullPath(SelectedConnection.Path);
-            if (!_tableDataState.TryLoadRawTable(dbPath, SelectedTableName, out var error))
+            var tableData = MiniDbFileReader.LoadTableData(dbPath, SelectedTableName, out var error);
+            if (error is not null)
             {
-                ShowError(Tf(AppStrings.Keys.MessageReadTableDataFailed, error ?? string.Empty));
+                Debug.WriteLine($"[MiniDb] LoadTableData error: {error}");
+                ShowError(Tf(AppStrings.Keys.MessageReadTableDataFailed, error));
                 return;
             }
 
+            _allRecords = tableData.Records;
+            CurrentFieldNames = tableData.FieldNames;
+
+            Debug.WriteLine($"[MiniDb] LoadTableData: loaded {_allRecords.Count} records, {CurrentFieldNames.Count} fields for table '{SelectedTableName}'");
+            Debug.WriteLine($"[MiniDb]   Fields: {string.Join(", ", CurrentFieldNames)}");
+
             FilterFields.Clear();
-            foreach (var field in _tableDataState.FilterFields)
+            foreach (var fieldName in tableData.FieldNames)
             {
-                FilterFields.Add(field);
+                FilterFields.Add(fieldName);
             }
 
-            SelectedFilterField = _tableDataState.SelectedFilterField;
+            SelectedFilterField = FilterFields.FirstOrDefault();
             FilterValue = string.Empty;
-            RefreshPagedItems();
+            RefreshDisplayRecords();
 
-            ShowSuccess(Tf(AppStrings.Keys.MessageLoadedTableWithCount, SelectedTableName, RawCount));
+            if (tableData.FallbackReason is not null)
+            {
+                var reason = tableData.FallbackReason switch
+                {
+                    "NoFieldMetadata" => T(AppStrings.Keys.MessageNoFieldMetadata),
+                    "FieldSizeMismatch" => T(AppStrings.Keys.MessageFieldSizeMismatch),
+                    _ => tableData.FallbackReason
+                };
+                ShowWarning(reason);
+            }
+            else
+            {
+                ShowSuccess(Tf(AppStrings.Keys.MessageLoadedTableWithCount, SelectedTableName, _allRecords.Count));
+            }
         }
         catch (Exception ex)
         {
@@ -596,90 +559,49 @@ public partial class MainViewModelV2 : ObservableObject
     [RelayCommand(CanExecute = nameof(CanApplyFilter))]
     private void ApplyFilter()
     {
-        if (RawCount == 0)
-        {
-            return;
-        }
-
-        _tableDataState.SetFilterField(SelectedFilterField);
-        _tableDataState.SetFilterValue(FilterValue);
-        _tableDataState.ApplyFilter();
-
-        RefreshPagedItems();
-        ShowSuccess(Tf(AppStrings.Keys.MessageFilterCompleted, TotalCount, RawCount));
+        RefreshDisplayRecords();
+        ShowSuccess(Tf(AppStrings.Keys.MessageFilterCompleted, DisplayRecords.Count, _allRecords.Count));
     }
 
     [RelayCommand(CanExecute = nameof(CanClearFilter))]
     private void ClearFilter()
     {
         FilterValue = string.Empty;
-        _tableDataState.ClearFilter();
-
-        RefreshPagedItems();
+        RefreshDisplayRecords();
         ShowInfo(T(AppStrings.Keys.MessageFilterCleared));
     }
 
-    [RelayCommand(CanExecute = nameof(CanFirstPage))]
-    private void FirstPage()
+    private void RefreshDisplayRecords()
     {
-        if (_tableDataState.GoFirstPage())
-        {
-            RefreshPagedItems();
-        }
-    }
+        var filtered = GetFilteredRecords();
 
-    [RelayCommand(CanExecute = nameof(CanPreviousPage))]
-    private void PreviousPage()
-    {
-        if (_tableDataState.GoPreviousPage())
+        DisplayRecords.Clear();
+        foreach (var record in filtered)
         {
-            RefreshPagedItems();
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanNextPage))]
-    private void NextPage()
-    {
-        if (_tableDataState.GoNextPage())
-        {
-            RefreshPagedItems();
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanLastPage))]
-    private void LastPage()
-    {
-        if (_tableDataState.GoLastPage())
-        {
-            RefreshPagedItems();
-        }
-    }
-
-    private void RefreshPagedItems()
-    {
-        var pageItems = _tableDataState.GetCurrentPageItems();
-
-        PagedRecords.Clear();
-        foreach (var item in pageItems)
-        {
-            if (item is TableDataStateService.RawTableRecord record)
-            {
-                PagedRecords.Add(record);
-            }
+            DisplayRecords.Add(record);
         }
 
-        NotifyPagingStateChanged();
+        Debug.WriteLine($"[MiniDb] RefreshDisplayRecords: {DisplayRecords.Count} records in DisplayRecords (filtered from {_allRecords.Count})");
 
+        NotifyDataStateChanged();
         RaiseCommandStates();
     }
 
-    private void NotifyPagingStateChanged()
+    private List<DynamicRecord> GetFilteredRecords()
     {
-        OnPropertyChanged(nameof(PageIndex));
-        OnPropertyChanged(nameof(TotalCount));
-        OnPropertyChanged(nameof(TotalPages));
+        if (_allRecords.Count == 0 || string.IsNullOrWhiteSpace(SelectedFilterField) || string.IsNullOrWhiteSpace(FilterValue))
+        {
+            return _allRecords;
+        }
+
+        var searchText = FilterValue.Trim();
+        var fieldName = SelectedFilterField;
+        return _allRecords.Where(r => r[fieldName].Contains(searchText, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private void NotifyDataStateChanged()
+    {
         OnPropertyChanged(nameof(RawCount));
-        OnPropertyChanged(nameof(PageSummary));
         OnPropertyChanged(nameof(FilterSummary));
         OnPropertyChanged(nameof(HasData));
         OnPropertyChanged(nameof(HasNoData));
@@ -698,10 +620,6 @@ public partial class MainViewModelV2 : ObservableObject
         RefreshTableCommand.NotifyCanExecuteChanged();
         ApplyFilterCommand.NotifyCanExecuteChanged();
         ClearFilterCommand.NotifyCanExecuteChanged();
-        FirstPageCommand.NotifyCanExecuteChanged();
-        PreviousPageCommand.NotifyCanExecuteChanged();
-        NextPageCommand.NotifyCanExecuteChanged();
-        LastPageCommand.NotifyCanExecuteChanged();
     }
 
     private void OnTableNamesChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -788,12 +706,13 @@ public partial class MainViewModelV2 : ObservableObject
         }
     }
 
-    private string T(string key)
+    private static string T(string key)
     {
-        return ResourceManager.GetString(key, CultureInfo.CurrentUICulture) ?? key;
+        if (Application.Current is not { } app) return key;
+        return app.Resources.TryGetResource(key, app.ActualThemeVariant, out var val) && val is string s ? s : key;
     }
 
-    private string Tf(string key, params object[] args)
+    private static string Tf(string key, params object[] args)
     {
         var format = T(key);
         return string.Format(CultureInfo.CurrentCulture, format, args);
@@ -810,35 +729,5 @@ public partial class MainViewModelV2 : ObservableObject
         CultureInfo.DefaultThreadCurrentUICulture = culture;
     }
 
-    private void RaiseLocalizationChanged()
-    {
-        OnPropertyChanged("Item[]");
-        foreach (var key in XamlLocalizationKeys)
-        {
-            OnPropertyChanged($"Item[{key}]");
-        }
-        OnPropertyChanged(nameof(MenuConnectionText));
-        OnPropertyChanged(nameof(MenuManageConnectionsText));
-        OnPropertyChanged(nameof(MenuAppearanceText));
-        OnPropertyChanged(nameof(MenuLightThemeText));
-        OnPropertyChanged(nameof(MenuDarkThemeText));
-        OnPropertyChanged(nameof(MenuSystemThemeText));
-        OnPropertyChanged(nameof(MenuLanguageText));
-        OnPropertyChanged(nameof(MenuHelpText));
-        OnPropertyChanged(nameof(MenuOpenRepoText));
-        OnPropertyChanged(nameof(MenuOpenIssuesText));
-        OnPropertyChanged(nameof(IsChinese));
-        OnPropertyChanged(nameof(IsEnglish));
-        OnPropertyChanged(nameof(ConnectionBadge));
-        OnPropertyChanged(nameof(SelectedConnectionDisplay));
-        OnPropertyChanged(nameof(SelectedConnectionPathDisplay));
-        OnPropertyChanged(nameof(EmptyStateMessage));
-        OnPropertyChanged(nameof(TableTitle));
-        OnPropertyChanged(nameof(PageSummary));
-        OnPropertyChanged(nameof(FilterSummary));
-        OnPropertyChanged(nameof(LabelTableCount));
-        OnPropertyChanged(nameof(LabelFilteredCount));
-        OnPropertyChanged(nameof(LabelRawCount));
-        SetStatus(ReadyStatus, StatusLevel.Neutral, autoReset: false);
-    }
+
 }

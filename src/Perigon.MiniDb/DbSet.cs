@@ -24,8 +24,17 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
         _tableName = tableName;
         _sharedCache = sharedCache;
 
-        // Calculate max ID once during initialization using direct property access
-        _maxId = entities.Count > 0 ? entities.Max(e => e.Id) : 0;
+        // Calculate max ID once during initialization using direct property access.
+        // Acquire lock because the shared entity list may be modified concurrently.
+        _sharedCache.EnterReadLock();
+        try
+        {
+            _maxId = entities.Count > 0 ? entities.Max(e => e.Id) : 0;
+        }
+        finally
+        {
+            _sharedCache.ExitReadLock();
+        }
     }
 
     public void Add(TEntity entity)

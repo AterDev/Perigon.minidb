@@ -1,5 +1,19 @@
 namespace Perigon.MiniDb.Tests;
 
+/// <summary>
+/// Isolated DbContext for ContextReuseTests to avoid parallel test config conflicts.
+/// </summary>
+public class ReuseTestDbContext : MiniDbContext
+{
+    public DbSet<Solution> Solutions { get; set; } = null!;
+    public DbSet<Project> Projects { get; set; } = null!;
+    public DbSet<ApiDocumentation> ApiDocumentations { get; set; } = null!;
+    public DbSet<AppConfiguration> Configurations { get; set; } = null!;
+    public DbSet<Customer> Customers { get; set; } = null!;
+    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+}
+
 public class ContextReuseTests : IAsyncDisposable
 {
     private readonly string _testDbPath;
@@ -7,12 +21,12 @@ public class ContextReuseTests : IAsyncDisposable
     public ContextReuseTests()
     {
         _testDbPath = Path.Combine(Path.GetTempPath(), $"test_reuse_{Guid.NewGuid()}.mds");
-        MiniDbConfiguration.AddDbContext<ComplexDbContext>(o => o.UseMiniDb(_testDbPath));
+        MiniDbConfiguration.AddDbContext<ReuseTestDbContext>(o => o.UseMiniDb(_testDbPath));
     }
 
     public async ValueTask DisposeAsync()
     {
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        await ReuseTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         if (File.Exists(_testDbPath))
         {
@@ -23,7 +37,7 @@ public class ContextReuseTests : IAsyncDisposable
     [Fact]
     public async Task CanReopenContextAfterDispose()
     {
-        await using (var db = new ComplexDbContext())
+        await using (var db = new ReuseTestDbContext())
         {
             var customer = new Customer
             {
@@ -66,7 +80,7 @@ public class ContextReuseTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        await using (var reopened = new ComplexDbContext())
+        await using (var reopened = new ReuseTestDbContext())
         {
             Assert.Equal(1, reopened.Customers.Count);
             Assert.Equal(1, reopened.Orders.Count);

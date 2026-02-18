@@ -1,0 +1,106 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="using:System">
+  <!-- App -->
+  <sys:String x:Key="App.Title">Perigon MiniDB 管理器</sys:String>
+
+  <!-- Window -->
+  <sys:String x:Key="Window.ConnectionManager.Title">管理连接</sys:String>
+
+  <!-- Menu -->
+  <sys:String x:Key="Menu.Connection">连接</sys:String>
+  <sys:String x:Key="Menu.ManageConnections">管理连接...</sys:String>
+  <sys:String x:Key="Menu.Appearance">外观</sys:String>
+  <sys:String x:Key="Menu.Theme.Light">浅色</sys:String>
+  <sys:String x:Key="Menu.Theme.Dark">深色</sys:String>
+  <sys:String x:Key="Menu.Theme.System">跟随系统</sys:String>
+  <sys:String x:Key="Menu.ToggleGlass">启用毛玻璃</sys:String>
+  <sys:String x:Key="Menu.Language">语言</sys:String>
+  <sys:String x:Key="Menu.Help">帮助</sys:String>
+  <sys:String x:Key="Menu.OpenRepo">打开仓库地址</sys:String>
+  <sys:String x:Key="Menu.OpenIssues">打开问题反馈</sys:String>
+
+  <!-- Sections -->
+  <sys:String x:Key="Section.Tables">表</sys:String>
+  <sys:String x:Key="Section.ConnectionConfig">连接配置</sys:String>
+
+  <!-- Labels -->
+  <sys:String x:Key="Label.SearchTableWatermark">搜索表</sys:String>
+  <sys:String x:Key="Label.SearchConnectionWatermark">搜索连接</sys:String>
+  <sys:String x:Key="Label.ConnectionNameWatermark">连接名称</sys:String>
+  <sys:String x:Key="Label.DbPathWatermark">数据库文件路径 (*.mds)</sys:String>
+  <sys:String x:Key="Label.FilterWatermark">输入要匹配的内容</sys:String>
+  <sys:String x:Key="Label.NoDataTitle">暂无可显示数据</sys:String>
+  <sys:String x:Key="Label.NoConnection">请先在"连接 > 管理连接"中打开数据库</sys:String>
+  <sys:String x:Key="Label.NotSelectedTable">未选择表</sys:String>
+  <sys:String x:Key="Label.NoSelectedConnection">未选择连接</sys:String>
+  <sys:String x:Key="Label.AddOrSelectConnectionFirst">请先添加或选择连接</sys:String>
+  <sys:String x:Key="Label.SelectTableToView">选择左侧表后查看数据</sys:String>
+  <sys:String x:Key="Label.NoDataForFilter">当前筛选条件下无数据</sys:String>
+
+  <!-- Status -->
+  <sys:String x:Key="Status.Ready">准备就绪</sys:String>
+  <sys:String x:Key="Status.Connected">已连接</sys:String>
+  <sys:String x:Key="Status.Disconnected">未连接</sys:String>
+  <sys:String x:Key="Status.LanguageChanged">语言已切换</sys:String>
+
+  <!-- Buttons -->
+  <sys:String x:Key="Button.Connect">连接</sys:String>
+  <sys:String x:Key="Button.Disconnect">断开</sys:String>
+  <sys:String x:Key="Button.CreateSample">创建示例库</sys:String>
+  <sys:String x:Key="Button.ResetView">重置视图</sys:String>
+  <sys:String x:Key="Button.Apply">查询</sys:String>
+  <sys:String x:Key="Button.Clear">清空</sys:String>
+  <sys:String x:Key="Button.FirstPage">首页</sys:String>
+  <sys:String x:Key="Button.PrevPage">上一页</sys:String>
+  <sys:String x:Key="Button.NextPage">下一页</sys:String>
+  <sys:String x:Key="Button.LastPage">末页</sys:String>
+  <sys:String x:Key="Button.Browse">浏览文件</sys:String>
+  <sys:String x:Key="Button.Add">添加</sys:String>
+  <sys:String x:Key="Button.Update">更新</sys:String>
+  <sys:String x:Key="Button.Delete">删除</sys:String>
+  <sys:String x:Key="Button.Close">关闭</sys:String>
+
+  <!-- Dialogs -->
+  <sys:String x:Key="Dialog.SelectMiniDbFile">选择 MiniDB 文件</sys:String>
+  <sys:String x:Key="Dialog.CreateSampleDb">创建示例数据库</sys:String>
+
+  <!-- Messages -->
+  <sys:String x:Key="Message.SelectConnectionFirst">请先选择一个连接。</sys:String>
+  <sys:String x:Key="Message.ConnectionAdded">连接 '{0}' 已添加。</sys:String>
+  <sys:String x:Key="Message.ConnectionUpdated">连接 '{0}' 已更新。</sys:String>
+  <sys:String x:Key="Message.ConnectionDeleted">连接 '{0}' 已删除。</sys:String>
+  <sys:String x:Key="Message.AddConnectionFailed">添加连接失败：{0}</sys:String>
+  <sys:String x:Key="Message.UpdateConnectionFailed">更新连接失败：{0}</sys:String>
+  <sys:String x:Key="Message.DeleteConnectionFailed">删除连接失败：{0}</sys:String>
+  <sys:String x:Key="Message.DatabaseFileNotFound">数据库文件不存在。</sys:String>
+  <sys:String x:Key="Message.DatabaseFileNotFoundWithPath">数据库文件不存在：{0}</sys:String>
+  <sys:String x:Key="Message.ConnectedTo">已连接：{0}</sys:String>
+  <sys:String x:Key="Message.ConnectionFailed">连接失败：{0}</sys:String>
+  <sys:String x:Key="Message.ReleaseCacheFailed">释放共享缓存失败：{0}</sys:String>
+  <sys:String x:Key="Message.Disconnected">已断开连接。</sys:String>
+  <sys:String x:Key="Message.ReadTableDataFailed">读取表数据失败：{0}</sys:String>
+  <sys:String x:Key="Message.LoadTableDataFailed">加载表数据失败：{0}</sys:String>
+  <sys:String x:Key="Message.LoadedTableWithCount">已加载 '{0}'，共 {1} 条记录。</sys:String>
+  <sys:String x:Key="Message.FilterCompleted">筛选完成：{0}/{1} 条。</sys:String>
+  <sys:String x:Key="Message.NoFieldMetadata">该文件由旧版引擎创建，缺少字段元数据，仅显示原始数据。请使用当前版本的引擎重新创建数据库文件。</sys:String>
+  <sys:String x:Key="Message.FieldSizeMismatch">字段元数据与记录大小不匹配，仅显示原始数据。文件可能已损坏或实体结构已更改。</sys:String>
+  <sys:String x:Key="Message.UnsupportedFileFormat">不支持该文件格式：缺少字段元数据。</sys:String>
+  <sys:String x:Key="Message.UnsupportedFileFormatDetail">不支持该文件格式：以下表缺少字段元数据，请使用当前版本引擎重新创建：{0}</sys:String>
+  <sys:String x:Key="Message.FilterCleared">已清空筛选条件。</sys:String>
+  <sys:String x:Key="Message.SampleDbCreated">示例数据库已创建：{0}</sys:String>
+  <sys:String x:Key="Message.SampleDbCreateFailed">创建示例数据库失败：{0}</sys:String>
+  <sys:String x:Key="Message.UnableToGetTargetPath">无法获取目标文件路径。</sys:String>
+  <sys:String x:Key="Message.RepositoryOpened">已在浏览器中打开仓库地址。</sys:String>
+  <sys:String x:Key="Message.OpenRepositoryFailed">打开仓库地址失败：{0}</sys:String>
+  <sys:String x:Key="Message.IssuesOpened">已打开问题反馈页面。</sys:String>
+  <sys:String x:Key="Message.OpenIssuesFailed">打开问题反馈页面失败：{0}</sys:String>
+
+  <!-- Formats -->
+  <sys:String x:Key="Format.TableTitle">表: {0}</sys:String>
+  <sys:String x:Key="Format.PageSummary">第 {0}/{1} 页，每页 {2} 条</sys:String>
+  <sys:String x:Key="Format.FilterSummary">显示 {0} 条（筛选后 {1} 条）</sys:String>
+  <sys:String x:Key="Format.TableCount">共 {0} 张表</sys:String>
+  <sys:String x:Key="Format.FilteredCount">筛选后 {0}</sys:String>
+  <sys:String x:Key="Format.RawCount">原始 {0} 条</sys:String>
+</ResourceDictionary>

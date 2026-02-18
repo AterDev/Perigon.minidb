@@ -79,6 +79,10 @@ public sealed class AppStrings
 		public const string MessageLoadTableDataFailed = "Message.LoadTableDataFailed";
 		public const string MessageLoadedTableWithCount = "Message.LoadedTableWithCount";
 		public const string MessageFilterCompleted = "Message.FilterCompleted";
+		public const string MessageNoFieldMetadata = "Message.NoFieldMetadata";
+		public const string MessageFieldSizeMismatch = "Message.FieldSizeMismatch";
+		public const string MessageUnsupportedFileFormat = "Message.UnsupportedFileFormat";
+		public const string MessageUnsupportedFileFormatDetail = "Message.UnsupportedFileFormatDetail";
 		public const string MessageFilterCleared = "Message.FilterCleared";
 		public const string MessageSampleDbCreated = "Message.SampleDbCreated";
 		public const string MessageSampleDbCreateFailed = "Message.SampleDbCreateFailed";

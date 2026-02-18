@@ -117,3 +117,18 @@ public static class FieldSizeCalculator
         return isNullable ? baseSize + 1 : baseSize;
     }
 }
+
+/// <summary>
+/// Type code stored in the binary file for field metadata.
+/// Used by StorageManager (write) and MiniDbFileReader (read) to agree on type encoding.
+/// </summary>
+public enum FieldTypeCode : int
+{
+    Unknown = 0,
+    Int32 = 1,
+    Boolean = 2,
+    Decimal = 3,
+    DateTime = 4,
+    String = 5,
+    Enum = 6
+}

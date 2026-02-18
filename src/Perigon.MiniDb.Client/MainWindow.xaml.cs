@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -32,9 +33,14 @@ public partial class MainWindow : Window
         ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
         _viewModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(MainViewModelV2.IsGlassEffectEnabled))
+            switch (args.PropertyName)
             {
-                ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
+                case nameof(MainViewModelV2.IsGlassEffectEnabled):
+                    ApplyGlassEffect(_viewModel.IsGlassEffectEnabled);
+                    break;
+                case nameof(MainViewModelV2.CurrentFieldNames):
+                    RegenerateDataGridColumns();
+                    break;
             }
         };
 
@@ -45,6 +51,25 @@ public partial class MainWindow : Window
     private void InitializeComponent()
     {
         AvaloniaXamlLoader.Load(this);
+    }
+
+    private void RegenerateDataGridColumns()
+    {
+        var dataGrid = this.FindControl<DataGrid>("TableDataGrid");
+        if (dataGrid is null) return;
+
+        dataGrid.Columns.Clear();
+        foreach (var fieldName in _viewModel.CurrentFieldNames)
+        {
+            dataGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = fieldName,
+                Binding = new Binding($"[{fieldName}]"),
+                Width = string.Equals(fieldName, "Id", StringComparison.Ordinal)
+                    ? new DataGridLength(80)
+                    : new DataGridLength(1, DataGridLengthUnitType.Star)
+            });
+        }
     }
 
     private void OpenConnectionManager_Click(object? sender, RoutedEventArgs e)
