@@ -26,7 +26,6 @@ public class ContextReuseTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await ReuseTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         if (File.Exists(_testDbPath))
         {

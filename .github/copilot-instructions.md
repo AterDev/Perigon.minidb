@@ -24,12 +24,11 @@ Perigon.MiniDb/
 │   │   ├── IMicroEntity.cs              # 实体接口（必须实现）
 │   │   ├── ChangeTracker.cs             # 变更追踪（Added/Modified/Deleted）
 │   │   ├── StorageManager.cs            # 二进制文件操作
-│   │   ├── SharedDataCache.cs           # 跨上下文共享内存缓存
-│   │   ├── FileWriteQueue.cs            # 单线程文件写入队列
+│   │   ├── FileDataCache.cs             # DbContext 私有内存缓存
 │   │   ├── EntityMetadata.cs            # 运行时元数据（启动缓存）
 │   │   ├── MiniDbConfiguration.cs       # 全局配置和注册
 │   │   ├── MiniDbOptions.cs             # 配置选项
-│   │   └── (线程安全由 SharedDataCache / FileWriteQueue 协同实现)
+│   │   └── (线程安全由 FileDataCache / SaveChanges 写锁协同实现)
 │   │
 │   ├── Perigon.MiniDb.Client/           # Avalonia 桌面客户端
 │   │   ├── ViewModels/                  # MVVM 视图模型
@@ -70,10 +69,8 @@ DbSet<T> (内存集合 + 变更追踪)
     ↓ Add/Update/Remove
 ChangeTracker (HashSet 追踪)
     ↓ SaveChangesAsync
-SharedDataCache (内存存储)
+FileDataCache (上下文内存存储)
     ↓ 获取写入锁
-FileWriteQueue (单线程)
-    ↓ 写入操作
 StorageManager (二进制格式)
     ↓ 
 磁盘文件 (.mds)
@@ -85,8 +82,8 @@ StorageManager (二进制格式)
 - **职责**：数据库上下文管理、DbSet 初始化、SaveChanges 协调
 - **特点**：
   - 自动扫描 public DbSet<T> 属性
-  - 自动从 SharedDataCache 加载数据
-  - 跨实例共享内存数据
+  - 自动加载上下文内存数据
+  - 通过文件头版本检测与外部更新保持同步
   - 支持 IDisposable 和 IAsyncDisposable
 
 #### 2. DbSet<T> (泛型表集合)
@@ -103,24 +100,15 @@ StorageManager (二进制格式)
 - **性能**：O(1) 查询和添加
 - **线程安全**：使用 Lock 保护
 
-#### 4. SharedDataCache
-- **职责**：全局内存缓存管理、跨 DbContext 实例共享
-- **生命周期**：应用启动 → 持续存在 → 应用退出或显式释放
+#### 4. FileDataCache
+- **职责**：DbContext 实例内存数据管理与并发同步
+- **生命周期**：DbContext 创建 → 持续存在 → DbContext 释放
 - **API**：
-  - GetOrCreateCache(filePath) - 获取或创建缓存
-  - ReleaseCache(filePath) - 显式释放（必须调用）
   - GetOrLoadTableDataAsync() - 延迟加载表数据
+  - EnterReadLock/EnterWriteLock - 同步访问控制
+  - EnterWriteLockAsync - 异步访问控制
 
-#### 5. FileWriteQueue
-- **职责**：串行化文件写入，避免并发冲突
-- **实现**：Channel<T> + 后台处理线程
-- **特点**：
-  - 无界通道（不限制队列长度）
-  - 单线程处理（保证顺序）
-  - FlushAsync() 等待所有操作完成
-  - 优雅关闭（10秒超时）
-
-#### 6. StorageManager
+#### 5. StorageManager
 - **职责**：二进制文件格式读写
 - **格式**：固定长度记录（O(1) 寻址）
 - **特性**：
@@ -129,7 +117,7 @@ StorageManager (二进制格式)
   - Span<T> 零分配读写
   - ArrayPool 缓冲区复用
 
-#### 7. EntityMetadata
+#### 6. EntityMetadata
 - **职责**：运行时实体元数据管理
 - **缓存**：启动时反射，FrozenDictionary 缓存
 - **内容**：字段顺序、类型大小、可空标记

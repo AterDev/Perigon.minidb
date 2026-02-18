@@ -1,7 +1,7 @@
 using System.Buffers;
 using System.Collections.Frozen;
-using System.Security.Cryptography;
 using System.Text;
+using System.Diagnostics;
 
 namespace Perigon.MiniDb;
 
@@ -44,7 +44,6 @@ internal class StorageManager
     private const int FIELD_NAME_BYTES = 64;
 
     private readonly string _filePath;
-    private readonly FileWriteQueue _writeQueue;
     private readonly Dictionary<string, TableMetadata> _tables = [];
     private readonly Dictionary<string, List<long>> _tableExtentStarts = [];
     private readonly Dictionary<string, long> _tableExtentDirectoryOffsets = [];
@@ -52,25 +51,25 @@ internal class StorageManager
     private FrozenDictionary<Type, EntityMetadata> _entityMetadataCache = FrozenDictionary<Type, EntityMetadata>.Empty;
     private long _knownGlobalWriteVersion;
 
-    public StorageManager(string filePath, FileWriteQueue writeQueue)
+    public StorageManager(string filePath)
     {
         _filePath = filePath;
-        _writeQueue = writeQueue;
     }
 
     public void Initialize(Dictionary<string, Type> tableTypes)
     {
-        ExecuteWithFileLock(() =>
+        var sw = Stopwatch.StartNew();
+        MiniDbDiagnostics.Info($"Storage initialize start: file='{_filePath}', tableCount={tableTypes.Count}");
+        if (File.Exists(_filePath))
         {
-            if (File.Exists(_filePath))
-            {
-                LoadDatabase();
-            }
-            else
-            {
-                CreateDatabase(tableTypes);
-            }
-        });
+            LoadDatabase();
+        }
+        else
+        {
+            CreateDatabase(tableTypes);
+        }
+        sw.Stop();
+        MiniDbDiagnostics.Info($"Storage initialize done: file='{_filePath}', elapsed={sw.ElapsedMilliseconds}ms");
     }
 
     private void CreateDatabase(Dictionary<string, Type> tableTypes)
@@ -301,6 +300,8 @@ internal class StorageManager
 
     public async Task<List<T>> LoadTableAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
     {
+        EnsureMetadataUpToDate();
+
         var result = new List<T>();
         if (!_tables.TryGetValue(tableName, out var tableMetadata))
             return result;
@@ -349,90 +350,99 @@ internal class StorageManager
         }
     }
 
+    public List<T> LoadTable<T>(string tableName) where T : class, IMicroEntity, new()
+    {
+        return LoadTableAsync<T>(tableName, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    public bool HasExternalUpdates()
+    {
+        if (!File.Exists(_filePath))
+        {
+            return false;
+        }
+
+        var currentVersion = ReadGlobalWriteVersion();
+        return currentVersion != _knownGlobalWriteVersion;
+    }
+
     public async Task SaveChangesAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
         CancellationToken cancellationToken = default) where T : class, IMicroEntity
     {
-        // Queue the write operation to ensure single-threaded file access
-        await _writeQueue.QueueWriteAsync(async () =>
-        {
-            await SaveChangesInternalAsync(tableName, added, modified, deleted, cancellationToken);
-        }, cancellationToken);
+        await SaveChangesInternalAsync(tableName, added, modified, deleted, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task SaveChangesInternalAsync<T>(string tableName, List<T> added, List<T> modified, List<T> deleted,
         CancellationToken cancellationToken = default) where T : class, IMicroEntity
     {
-        await ExecuteWithFileLockAsync(async () =>
+        // Refresh metadata only when another process has written new changes.
+        EnsureMetadataUpToDate();
+
+        var tableMetadata = _tables[tableName];
+        var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
+        if (tableMetadata.RecordSize != entityMetadata.RecordSize)
         {
-            // Refresh metadata only when another process has written new changes.
-            EnsureMetadataUpToDateUnderFileLock();
+            throw new InvalidDataException(
+                $"Schema mismatch for table '{tableName}': file RecordSize={tableMetadata.RecordSize}, expected RecordSize={entityMetadata.RecordSize} for entity '{typeof(T).FullName}'.");
+        }
 
-            var tableMetadata = _tables[tableName];
-            var entityMetadata = GetOrCreateEntityMetadata(typeof(T));
-            if (tableMetadata.RecordSize != entityMetadata.RecordSize)
+        await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read,
+            bufferSize: 4096, useAsync: true);
+
+        // Handle added records
+        foreach (var entity in added)
+        {
+            await EnsureCapacityForAppendAsync(tableName, file, cancellationToken).ConfigureAwait(false);
+
+            // Assign Id at write time to ensure uniqueness across multiple processes.
+            entity.Id = tableMetadata.RecordCount + 1;
+            var writeOffset = GetRecordOffset(tableName, entity.Id);
+
+            var buffer = SerializeRecord(entity, entityMetadata);
+            file.Seek(writeOffset, SeekOrigin.Begin);
+            await file.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+            tableMetadata.RecordCount++;
+        }
+
+        // Handle modified records
+        foreach (var entity in modified)
+        {
+            var id = entity.Id;
+            if (id <= 0 || id > tableMetadata.RecordCount)
             {
-                throw new InvalidDataException(
-                    $"Schema mismatch for table '{tableName}': file RecordSize={tableMetadata.RecordSize}, expected RecordSize={entityMetadata.RecordSize} for entity '{typeof(T).FullName}'.");
+                throw new InvalidOperationException(
+                    $"Cannot modify entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
             }
 
-            await using var file = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read,
-                bufferSize: 4096, useAsync: true);
+            var buffer = SerializeRecord(entity, entityMetadata);
+            long offset = GetRecordOffset(tableName, id);
+            file.Seek(offset, SeekOrigin.Begin);
+            await file.WriteAsync(buffer, cancellationToken).ConfigureAwait(false);
+        }
 
-            // Handle added records
-            foreach (var entity in added)
+        // Handle deleted records (soft delete)
+        foreach (var entity in deleted)
+        {
+            var id = entity.Id;
+            if (id <= 0 || id > tableMetadata.RecordCount)
             {
-                await EnsureCapacityForAppendAsync(tableName, file, cancellationToken);
-
-                // Assign Id at write time to ensure uniqueness across multiple processes.
-                entity.Id = tableMetadata.RecordCount + 1;
-                var writeOffset = GetRecordOffset(tableName, entity.Id);
-
-                var buffer = SerializeRecord(entity, entityMetadata);
-                file.Seek(writeOffset, SeekOrigin.Begin);
-                await file.WriteAsync(buffer, cancellationToken);
-                tableMetadata.RecordCount++;
+                throw new InvalidOperationException(
+                    $"Cannot delete entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
             }
 
-            // Handle modified records
-            foreach (var entity in modified)
-            {
-                var id = entity.Id;
-                if (id <= 0 || id > tableMetadata.RecordCount)
-                {
-                    throw new InvalidOperationException(
-                        $"Cannot modify entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
-                }
+            long offset = GetRecordOffset(tableName, id);
+            file.Seek(offset, SeekOrigin.Begin);
+            await file.WriteAsync(new byte[] { 1 }, cancellationToken).ConfigureAwait(false); // Set IsDeleted flag
+        }
 
-                var buffer = SerializeRecord(entity, entityMetadata);
-                long offset = GetRecordOffset(tableName, id);
-                file.Seek(offset, SeekOrigin.Begin);
-                await file.WriteAsync(buffer, cancellationToken);
-            }
+        // Ensure data is written to disk
+        await file.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-            // Handle deleted records (soft delete)
-            foreach (var entity in deleted)
-            {
-                var id = entity.Id;
-                if (id <= 0 || id > tableMetadata.RecordCount)
-                {
-                    throw new InvalidOperationException(
-                        $"Cannot delete entity with Id {id} in table '{tableName}': valid Id range is 1..{tableMetadata.RecordCount}.");
-                }
-
-                long offset = GetRecordOffset(tableName, id);
-                file.Seek(offset, SeekOrigin.Begin);
-                await file.WriteAsync(new byte[] { 1 }, cancellationToken); // Set IsDeleted flag
-            }
-
-            // Ensure data is written to disk
-            await file.FlushAsync(cancellationToken);
-
-            // Update table metadata in the same file stream
-            await UpdateTableMetadataAsync(tableName, file, cancellationToken);
-            _knownGlobalWriteVersion++;
-            await UpdateGlobalWriteVersionAsync(file, _knownGlobalWriteVersion, cancellationToken);
-            await file.FlushAsync(cancellationToken);
-        }, cancellationToken);
+        // Update table metadata in the same file stream
+        await UpdateTableMetadataAsync(tableName, file, cancellationToken).ConfigureAwait(false);
+        _knownGlobalWriteVersion++;
+        await UpdateGlobalWriteVersionAsync(file, _knownGlobalWriteVersion, cancellationToken).ConfigureAwait(false);
+        await file.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static List<long> ReadExtentStarts(BinaryReader reader, long directoryOffset, int extentCount)
@@ -509,7 +519,7 @@ internal class StorageManager
         return capacities;
     }
 
-    private void EnsureMetadataUpToDateUnderFileLock()
+    private void EnsureMetadataUpToDate()
     {
         if (!File.Exists(_filePath))
         {
@@ -614,69 +624,6 @@ internal class StorageManager
                 _tableExtentStarts[tableName] = [_tables[tableName].DataStartOffset];
             }
         }
-    }
-
-    private void ExecuteWithFileLock(Action action)
-    {
-        using var semaphore = new Semaphore(1, 1, GetFileLockName(_filePath));
-        bool lockTaken = false;
-        try
-        {
-            lockTaken = WaitForFileLock(semaphore, CancellationToken.None);
-            action();
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                semaphore.Release();
-            }
-        }
-    }
-
-    private async Task ExecuteWithFileLockAsync(Func<Task> action, CancellationToken cancellationToken)
-    {
-        using var semaphore = new Semaphore(1, 1, GetFileLockName(_filePath));
-        bool lockTaken = false;
-        try
-        {
-            lockTaken = WaitForFileLock(semaphore, cancellationToken);
-            await action().ConfigureAwait(false);
-        }
-        finally
-        {
-            if (lockTaken)
-            {
-                semaphore.Release();
-            }
-        }
-    }
-
-    private static bool WaitForFileLock(Semaphore semaphore, CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                if (semaphore.WaitOne(TimeSpan.FromMilliseconds(100)))
-                {
-                    return true;
-                }
-            }
-            catch (SemaphoreFullException)
-            {
-                // Defensive handling: recreate acquisition loop on unexpected semaphore state.
-            }
-        }
-    }
-
-    private static string GetFileLockName(string filePath)
-    {
-        var normalizedPath = Path.GetFullPath(filePath).ToLowerInvariant();
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(normalizedPath));
-        var token = Convert.ToHexString(hash[..16]);
-        return $"PerigonMiniDbLock_{token}";
     }
 
     private async Task EnsureCapacityForAppendAsync(string tableName, FileStream file, CancellationToken cancellationToken)

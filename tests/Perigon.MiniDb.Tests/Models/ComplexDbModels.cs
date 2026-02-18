@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Text.Json;
 
 namespace Perigon.MiniDb.Tests;
 
@@ -60,24 +62,136 @@ public class OrderItem : IMicroEntity
 /// </summary>
 public class Solution : IMicroEntity
 {
+        [Key]
     public int Id { get; set; }
-
+    /// <summary>
+    /// 项目名称
+    /// </summary>
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 显示名
+    /// </summary>
     [MaxLength(100)]
     public string DisplayName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 路径
+    /// </summary>
     [MaxLength(200)]
     public string Path { get; set; } = string.Empty;
 
+    /// <summary>
+    /// 版本
+    /// </summary>
     [MaxLength(20)]
     public string? Version { get; set; }
 
+    /// <summary>
+    /// 解决方案类型
+    /// </summary>
     public SolutionType? SolutionType { get; set; }
 
+    /// <summary>
+    /// project config - stored as JSON string
+    /// </summary>
     [MaxLength(2000)]
-    public string ConfigJsonString { get; set; } = string.Empty;
+    public string ConfigJsonString
+    {
+        get
+        {
+            if (_config != null)
+            {
+                return JsonSerializer.Serialize(_config);
+            }
+            return field;
+        }
+        set
+        {
+            field = value;
+            _config = null;
+        }
+    } = string.Empty;
+
+    private SolutionConfig? _config;
+
+    /// <summary>
+    /// project config
+    /// </summary>
+    [NotMapped]
+    public SolutionConfig Config
+    {
+        get
+        {
+            if (_config == null)
+            {
+                if (string.IsNullOrEmpty(ConfigJsonString))
+                    _config = new SolutionConfig();
+                else
+                    _config = JsonSerializer.Deserialize<SolutionConfig>(ConfigJsonString) ?? new SolutionConfig();
+            }
+            return _config;
+        }
+        set
+        {
+            _config = value;
+        }
+    }
+}
+
+/// <summary>
+///  项目配置
+/// </summary>
+public class SolutionConfig
+{
+    public string IdType { get; set; } = string.Empty;
+    public string CreatedTimeName { get; set; } = string.Empty;
+    public string UpdatedTimeName { get; set; } = string.Empty;
+    public string Version { get; set; } = string.Empty;
+
+    [Required]
+    public string SharePath { get; set; } = string.Empty;
+
+    [Required]
+    public string EntityPath { get; set; } = string.Empty;
+
+    [Required]
+    public string EntityFrameworkPath { get; set; } = string.Empty;
+    public string CommonModPath { get; set; } = string.Empty;
+
+    [Required]
+    public string ModulePath { get; set; } = string.Empty;
+    public string ApiPath { get; set; } = string.Empty;
+
+    [Required]
+    public string ServicePath { get; set; } = string.Empty;
+    public string SolutionPath { get; set; } = string.Empty;
+
+    /// <summary> 
+    /// 是否为租户模式
+    /// </summary>
+    public bool IsTenantMode { get; set; }
+
+    /// <summary>
+    /// 用来标识用户标识名称
+    /// </summary>
+    public ICollection<string> UserIdKeys { get; set; } = ["UserId"];
+
+    [Required]
+    public string SystemModName { get; set; } = "SystemMod";
+}
+
+public enum SolutionType
+{
+    [Description("DotNet")]
+    DotNet,
+
+    [Description("Node")]
+    Node,
+
+    [Description("Else")]
+    Else,
 }
 
 /// <summary>
@@ -153,21 +267,6 @@ public class AppConfiguration : IMicroEntity
     public bool IsEncrypted { get; set; }
 
     public DateTime UpdatedAt { get; set; }
-}
-
-public enum SolutionType
-{
-    [Description("DotNet")]
-    DotNet = 1,
-
-    [Description("Node")]
-    Node = 2,
-
-    [Description("Python")]
-    Python = 3,
-
-    [Description("Else")]
-    Else = 4,
 }
 
 public enum ProjectType

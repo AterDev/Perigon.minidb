@@ -17,7 +17,6 @@ public class MultiExtentTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await MultiExtentTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -67,8 +66,6 @@ public class MultiExtentTests : IAsyncDisposable
 
             await db.SaveChangesAsync();
         }
-
-        await MultiExtentTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
 
         var db2 = new MultiExtentTestDbContext();
         await using (db2)

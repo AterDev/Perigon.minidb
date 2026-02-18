@@ -43,11 +43,6 @@ public class ExceptionHandlingTests : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await Task.Delay(10);
-        // Note: We should release cache if we successfully created a context, but here we expect failures.
-        // However, if some tests succeed in creating context, we should release.
-        // Since we use unique paths, it's safer to try release.
-        try { await InvalidDbContext.ReleaseSharedCacheAsync(_testDbPath); } catch { }
-        try { await ExceptionTestDbContext.ReleaseSharedCacheAsync(_testDbPath); } catch { }
         
         if (File.Exists(_testDbPath))
         {
@@ -138,7 +133,6 @@ public class ExceptionHandlingTests : IAsyncDisposable
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        await ExceptionTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         var reload = new ExceptionTestDbContext();
         var loaded = reload.Users.First();
         Assert.Equal(string.Empty, loaded.Name);

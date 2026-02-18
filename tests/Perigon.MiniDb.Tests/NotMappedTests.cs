@@ -52,7 +52,6 @@ public class NotMappedTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -83,7 +82,6 @@ public class NotMappedTests : IAsyncDisposable
         }
 
         // Reload and verify [NotMapped] properties are not loaded
-        await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new NotMappedTestContext();
         await using (db2)
         {
@@ -123,7 +121,6 @@ public class NotMappedTests : IAsyncDisposable
         }
 
         // Reload and verify computed properties work
-        await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new NotMappedTestContext();
         await using (db2)
         {
@@ -161,7 +158,6 @@ public class NotMappedTests : IAsyncDisposable
         }
 
         // Reload and verify only mapped property was updated
-        await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new NotMappedTestContext();
         await using (db2)
         {
@@ -192,7 +188,6 @@ public class NotMappedTests : IAsyncDisposable
         }
 
         // Reload and verify all [NotMapped] properties are ignored
-        await NotMappedTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new NotMappedTestContext();
         await using (db2)
         {

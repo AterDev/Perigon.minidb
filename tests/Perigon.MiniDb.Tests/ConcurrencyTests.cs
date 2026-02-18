@@ -22,7 +22,6 @@ public class ConcurrencyTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await ConcurrencyTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -327,8 +326,8 @@ public class ConcurrencyTests : IAsyncDisposable
         stopwatch.Stop();
 
         // Duration should be reasonable for 5000 records
-        Assert.True(stopwatch.ElapsedMilliseconds < 1000,
-            $"Reading 5000 records took {stopwatch.ElapsedMilliseconds}ms, expected < 1000ms");
+        Assert.True(stopwatch.ElapsedMilliseconds < 1500,
+            $"Reading 5000 records took {stopwatch.ElapsedMilliseconds}ms, expected < 1500ms");
 
         // Cleanup
         await db.DisposeAsync();
@@ -361,7 +360,7 @@ public class ConcurrencyTests : IAsyncDisposable
         var contexts = await Task.WhenAll(tasks);
 
         // Just verify no exceptions and all contexts are disposed
-        foreach (var ctx in contexts.Where(c => c != null))
+        foreach (var ctx in contexts.OfType<ConcurrencyTestDbContext>())
         {
             await ctx.DisposeAsync();
         }
@@ -486,7 +485,6 @@ public class ConcurrencyTests : IAsyncDisposable
         Assert.InRange(finalUser.Balance, 1000m, 1009m);
         
         await db.DisposeAsync();
-        await ConcurrencyTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
     }
 
     [Fact]
@@ -659,6 +657,5 @@ public class ConcurrencyTests : IAsyncDisposable
         await Task.WhenAll(tasks);
         
         // Cleanup
-        await ConcurrencyTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
     }
 }

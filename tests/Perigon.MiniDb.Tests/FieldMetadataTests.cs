@@ -47,7 +47,6 @@ public class FieldMetadataTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await FieldMetaTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         if (File.Exists(_testDbPath))
             File.Delete(_testDbPath);
@@ -188,7 +187,6 @@ public class FieldMetadataTests : IAsyncDisposable
         }
         finally
         {
-            await FieldMetaComplexDbContext.ReleaseSharedCacheAsync(enumDbPath);
             await Task.Delay(10);
             if (File.Exists(enumDbPath))
                 File.Delete(enumDbPath);
@@ -215,7 +213,6 @@ public class FieldMetadataTests : IAsyncDisposable
         }
         finally
         {
-            await FieldMetaComplexDbContext.ReleaseSharedCacheAsync(dbPath);
             await Task.Delay(10);
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
@@ -240,8 +237,7 @@ public class FieldMetadataTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // Release and re-open
-        await FieldMetaTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
+        // Re-open
         MiniDbConfiguration.AddDbContext<FieldMetaTestDbContext>(o => o.UseMiniDb(_testDbPath));
 
         await using (var db = new FieldMetaTestDbContext())

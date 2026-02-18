@@ -13,16 +13,18 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
     private readonly ChangeTracker _changeTracker;
     private readonly string _tableName;
     private readonly FileDataCache _sharedCache;
+    private readonly Action _ensureFreshData;
 
     // Track maximum ID for O(1) ID assignment
     private int _maxId;
 
-    internal DbSet(List<TEntity> entities, ChangeTracker changeTracker, string tableName, FileDataCache sharedCache)
+    internal DbSet(List<TEntity> entities, ChangeTracker changeTracker, string tableName, FileDataCache sharedCache, Action ensureFreshData)
     {
         _entities = entities;
         _changeTracker = changeTracker;
         _tableName = tableName;
         _sharedCache = sharedCache;
+        _ensureFreshData = ensureFreshData;
 
         // Calculate max ID once during initialization using direct property access.
         // Acquire lock because the shared entity list may be modified concurrently.
@@ -39,6 +41,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 
     public void Add(TEntity entity)
     {
+        _ensureFreshData();
         _sharedCache.EnterWriteLock();
         try
         {
@@ -57,6 +60,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 
     public void Update(TEntity entity)
     {
+        _ensureFreshData();
         _sharedCache.EnterReadLock();
         try
         {
@@ -83,6 +87,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 
     public void Remove(TEntity entity)
     {
+        _ensureFreshData();
         _sharedCache.EnterWriteLock();
         try
         {
@@ -108,6 +113,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
 
     public IEnumerator<TEntity> GetEnumerator()
     {
+        _ensureFreshData();
         _sharedCache.EnterReadLock();
         try
         {
@@ -132,6 +138,7 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
     {
         get
         {
+            _ensureFreshData();
             _sharedCache.EnterReadLock();
             try
             {
@@ -140,6 +147,28 @@ public class DbSet<TEntity> : IEnumerable<TEntity> where TEntity : IMicroEntity
             finally
             {
                 _sharedCache.ExitReadLock();
+            }
+        }
+    }
+
+    internal void ReplaceAllFromStore(List<TEntity> latest, bool assumeWriteLockHeld = false)
+    {
+        if (!assumeWriteLockHeld)
+        {
+            _sharedCache.EnterWriteLock();
+        }
+
+        try
+        {
+            _entities.Clear();
+            _entities.AddRange(latest);
+            _maxId = _entities.Count > 0 ? _entities.Max(e => e.Id) : 0;
+        }
+        finally
+        {
+            if (!assumeWriteLockHeld)
+            {
+                _sharedCache.ExitWriteLock();
             }
         }
     }

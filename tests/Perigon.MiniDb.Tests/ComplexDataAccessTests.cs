@@ -19,7 +19,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         if (File.Exists(_testDbPath))
         {
@@ -85,9 +84,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             Assert.Equal(25, db1.ApiDocumentations.Count);
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Cycle 2: Update some records and delete some records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -129,9 +125,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Cycle 3: Reload and verify counts and Id uniqueness are correct
         var db3 = new ComplexDbContext();
@@ -222,7 +215,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
                     Name = "PythonSolution",
                     DisplayName = "Python Solution",
                     Path = "C:\\Projects\\Python",
-                    SolutionType = SolutionType.Python,
+                    SolutionType = SolutionType.Else,
                     ConfigJsonString = JsonSerializer.Serialize(new { pythonVersion = "3.11" })
                 }
             };
@@ -253,7 +246,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             Assert.Equal(SolutionType.DotNet, dotnet.SolutionType);
             Assert.Equal(SolutionType.Node, node.SolutionType);
-            Assert.Equal(SolutionType.Python, python.SolutionType);
+            Assert.Equal(SolutionType.Else, python.SolutionType);
 
             Assert.NotEmpty(node.ConfigJsonString);
             Assert.NotEmpty(python.ConfigJsonString);
@@ -303,10 +296,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             Assert.Equal(1, project.Id);
         }
-
-        // Release and reload
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Verify both tables loaded correctly
         var db3 = new ComplexDbContext();
@@ -436,9 +425,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Cycle 2: Add projects
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -459,9 +445,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             }
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Cycle 3: Add API docs
         var db3 = new ComplexDbContext();
@@ -485,9 +468,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             }
             await db3.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Final verification
         var db4 = new ComplexDbContext();
@@ -534,9 +514,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Update: Modify records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -553,9 +530,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Verify: Check updates persisted
         var db3 = new ComplexDbContext();
@@ -593,7 +567,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
                 Name = "WithType",
                 DisplayName = "With Type",
                 Path = "C:\\WithType",
-                SolutionType = SolutionType.Python,
+                SolutionType = SolutionType.Else,
                 ConfigJsonString = "{}"
             };
 
@@ -602,7 +576,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db.SaveChangesAsync();
 
             Assert.Null(solution1.SolutionType);
-            Assert.Equal(SolutionType.Python, solution2.SolutionType);
+            Assert.Equal(SolutionType.Else, solution2.SolutionType);
         }
 
         // Reload and verify null handling
@@ -614,7 +588,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
             var withEnum = solutions.First(s => s.Name == "WithType");
 
             Assert.Null(nullEnum.SolutionType);
-            Assert.Equal(SolutionType.Python, withEnum.SolutionType);
+            Assert.Equal(SolutionType.Else, withEnum.SolutionType);
         }
     }
 
@@ -654,9 +628,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Delete records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -673,16 +644,13 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db2.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Verify deletions
         var db3 = new ComplexDbContext();
         await using (db3)
         {
-            Assert.Empty(db3.Solutions.Where(s => s.Name == "ToDelete"));
-            Assert.Empty(db3.Projects.Where(p => p.ProjectName == "ToDelete"));
-            Assert.Empty(db3.Configurations.Where(c => c.ConfigKey == "ToDelete"));
+            Assert.DoesNotContain(db3.Solutions, s => s.Name == "ToDelete");
+            Assert.DoesNotContain(db3.Projects, p => p.ProjectName == "ToDelete");
+            Assert.DoesNotContain(db3.Configurations, c => c.ConfigKey == "ToDelete");
         }
     }
 
@@ -720,7 +688,8 @@ public class ComplexDataAccessTests : IAsyncDisposable
             Assert.Equal(100, loaded.Name.Length);
             Assert.Equal(100, loaded.DisplayName.Length);
             Assert.Equal(200, loaded.Path.Length);
-            Assert.Equal(20, loaded.Version.Length);
+            Assert.NotNull(loaded.Version);
+            Assert.Equal(20, loaded.Version!.Length);
             Assert.Equal(2000, loaded.ConfigJsonString.Length);
         }
     }
