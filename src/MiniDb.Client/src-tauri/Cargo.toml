@@ -32,3 +32,11 @@ window-vibrancy = "0.6"
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+codegen-units = 8
+lto = "thin"
+incremental = true
+opt-level = "s"
+panic = "abort"
+strip = true
