@@ -1,0 +1,195 @@
+﻿<mat-sidenav-container class="db-container">
+
+  <!-- Left sidebar: table list -->
+  <mat-sidenav mode="side" opened class="db-sidebar">
+    <div class="sidebar-header" [class.disconnected]="!isConnected">
+      <span class="sidebar-title">{{ 'nav.database' | translate }}</span>
+      <button mat-icon-button (click)="refresh()" [matTooltip]="'connection.refresh' | translate"
+        [disabled]="!isConnected || isRefreshing()">
+        <mat-icon [class.spinning]="isRefreshing()">refresh</mat-icon>
+      </button>
+      <button mat-icon-button (click)="disconnect()" [disabled]="!isConnected" [matTooltip]="'connection.disconnect' | translate">
+        <mat-icon>power_settings_new</mat-icon>
+      </button>
+    </div>
+
+    <mat-divider />
+
+    <mat-nav-list dense>
+      @if (!isConnected) {
+        <mat-list-item disabled>
+          <span matListItemTitle class="muted-item">{{ 'status.notConnectedHint' | translate }}</span>
+        </mat-list-item>
+      } @else {
+        @for (name of tableNames(); track name) {
+          <a mat-list-item
+            [activated]="selectedTable() === name"
+            (click)="selectTable(name)">
+            <mat-icon matListItemIcon>table_chart</mat-icon>
+            <span matListItemTitle>{{ name }}</span>
+          </a>
+        }
+        @if (tableNames().length === 0 && !isRefreshing()) {
+          <mat-list-item disabled>
+            <span matListItemTitle class="muted-item">{{ 'table.noTables' | translate }}</span>
+          </mat-list-item>
+        }
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <!-- Main content -->
+  <mat-sidenav-content class="db-content">
+
+    <!-- Content toolbar -->
+    @if (isConnected && selectedTable()) {
+      <div class="content-toolbar">
+        <div class="toolbar-left">
+          <span class="table-badge">{{ selectedTable() }}</span>
+          @if (totalCount > 0 && !isLoading()) {
+            <span class="record-count">{{ totalCount | number }} {{ 'table.records' | translate }}</span>
+          }
+          @if (isFilterActive()) {
+            <mat-chip (removed)="clearFilter()">
+              <mat-icon matChipAvatar>filter_alt</mat-icon>
+              {{ filterField() }}
+              <button matChipRemove><mat-icon>cancel</mat-icon></button>
+            </mat-chip>
+          }
+        </div>
+        <div class="toolbar-right">
+          <button mat-stroked-button [class.active-filter]="filterOpen() || isFilterActive()"
+            (click)="toggleFilter()">
+            <mat-icon>filter_list</mat-icon>{{ 'filter.title' | translate }}
+          </button>
+          <mat-form-field appearance="outline" class="page-size-field" subscriptSizing="dynamic">
+            <mat-select [ngModel]="pageSize()" (ngModelChange)="setPageSize($event)">
+              <mat-option [value]="20">20</mat-option>
+              <mat-option [value]="50">50</mat-option>
+              <mat-option [value]="100">100</mat-option>
+              <mat-option [value]="200">200</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </div>
+    }
+
+    <!-- Filter panel -->
+    @if (isConnected && filterOpen()) {
+      <div class="filter-panel">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-ff">
+          <mat-label>{{ 'filter.field' | translate }}</mat-label>
+          <mat-select [ngModel]="filterField()" (ngModelChange)="filterField.set($event)">
+            @for (col of columns; track col) {
+              <mat-option [value]="col">{{ col }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-ff">
+          <mat-label>{{ 'filter.operator' | translate }}</mat-label>
+          <mat-select [ngModel]="filterOperator()" (ngModelChange)="filterOperator.set($event)">
+            @for (op of filterOperators; track op.key) {
+              <mat-option [value]="op.key">{{ op.labelKey | translate }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-ff filter-ff-wide">
+          <mat-label>{{ 'filter.value' | translate }}</mat-label>
+          <input matInput [ngModel]="filterValue()" (ngModelChange)="filterValue.set($event)" />
+        </mat-form-field>
+
+        @if (operatorNeedsValueTo()) {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-ff">
+            <mat-label>{{ 'filter.valueTo' | translate }}</mat-label>
+            <input matInput [ngModel]="filterValueTo()" (ngModelChange)="filterValueTo.set($event)" />
+          </mat-form-field>
+        }
+
+        <button mat-flat-button (click)="applyFilter()">{{ 'filter.apply' | translate }}</button>
+        <button mat-button (click)="clearFilter()">{{ 'filter.clear' | translate }}</button>
+      </div>
+    }
+
+    <!-- Error -->
+    @if (errorMsg()) {
+      <div class="error-bar">
+        <mat-icon>error_outline</mat-icon> {{ errorMsg() }}
+      </div>
+    }
+
+    @if (!isConnected && !isLoading()) {
+      <div class="empty-state">
+        <mat-icon>link_off</mat-icon>
+        <p>{{ 'status.notConnectedHint' | translate }}</p>
+      </div>
+    }
+
+    <!-- Loading -->
+    @if (isLoading()) {
+      <div class="loading-state">
+        <mat-spinner diameter="40" />
+        <span>{{ 'table.loading' | translate }}</span>
+      </div>
+    }
+
+    <!-- No table selected -->
+    @if (isConnected && !selectedTable() && !isLoading()) {
+      <div class="empty-state">
+        <mat-icon>table_chart</mat-icon>
+        <p>{{ 'table.noSelection' | translate }}</p>
+      </div>
+    }
+
+    <!-- No data -->
+    @if (isConnected && selectedTable() && !isLoading() && !errorMsg() && records.length === 0) {
+      <div class="empty-state">
+        <mat-icon>inbox</mat-icon>
+        <p>{{ 'table.noData' | translate }}</p>
+      </div>
+    }
+
+    <!-- Data table -->
+    @if (isConnected && !isLoading() && records.length > 0) {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              @for (col of columns; track col) {
+                <th [class.col-active-filter]="isFilterActive() && filterField() === col"
+                  (click)="filterField.set(col); filterOpen.set(true)">
+                  {{ col }}
+                </th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of records; track $index) {
+              <tr>
+                @for (col of columns; track col) {
+                  <td [title]="cellValue(row, col)">{{ formatDisplayValue(cellValue(row, col), col) }}</td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <!-- Pagination -->
+    @if (isConnected && totalCount > 0 && !isLoading()) {
+      <div class="pagination-bar">
+        <button mat-icon-button [disabled]="!hasPrev()" (click)="prevPage()">
+          <mat-icon>chevron_left</mat-icon>
+        </button>
+        <span class="page-info">{{ currentPage() + 1 }} / {{ totalPages() }}</span>
+        <button mat-icon-button [disabled]="!hasNext()" (click)="nextPage()">
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+        <span class="record-info">{{ 'table.total' | translate }}: {{ totalCount | number }}</span>
+      </div>
+    }
+
+  </mat-sidenav-content>
+</mat-sidenav-container>

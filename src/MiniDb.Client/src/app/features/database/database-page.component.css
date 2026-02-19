@@ -1,0 +1,147 @@
+:host { display: block; height: 100%; min-height: 0; }
+
+.db-container { height: 100%; }
+
+.db-sidebar {
+  width: 210px;
+  background: var(--ui-glass-soft);
+  border-right: 1px solid var(--ui-hairline);
+  backdrop-filter: blur(10px) saturate(125%);
+  -webkit-backdrop-filter: blur(10px) saturate(125%);
+}
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: 4px 6px 4px 12px;
+  gap: 0;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  flex-shrink: 0;
+  background: var(--ui-glass-soft);
+}
+.sidebar-header.disconnected {
+  opacity: 0.7;
+}
+.sidebar-title {
+  flex: 1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+}
+
+.muted-item {
+  opacity: 0.5;
+  font-size: 0.8rem;
+}
+
+.db-content { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+.content-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  flex-shrink: 0;
+  gap: 8px;
+  min-height: 38px;
+  background: var(--ui-glass-soft);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+}
+.toolbar-left { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.toolbar-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.toolbar-right > * { align-self: center; }
+.table-badge { font-weight: 700; font-size: 0.85rem; color: var(--mat-sys-primary); }
+.active-filter { color: var(--mat-sys-primary) !important; }
+.record-count { font-size: 0.72rem; opacity: 0.5; }
+.page-size-field { width: 80px; margin-bottom: 0; }
+
+.filter-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--ui-glass-soft) 90%, transparent);
+}
+.filter-ff { width: 140px; }
+.filter-ff-wide { flex: 1 1 180px; min-width: 140px; }
+
+.error-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: color-mix(in srgb, var(--mat-sys-error) 10%, transparent);
+  color: var(--mat-sys-error);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  opacity: 0.45;
+}
+.empty-state mat-icon { font-size: 40px; width: 40px; height: 40px; }
+
+.table-scroll { flex: 1; overflow: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  table-layout: auto;
+}
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 5px 10px;
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--ui-glass-strong);
+  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(8px) saturate(115%);
+  -webkit-backdrop-filter: blur(8px) saturate(115%);
+}
+.data-table th:hover { background: var(--mat-sys-surface-variant); }
+.data-table th.col-active-filter { color: var(--mat-sys-primary); }
+.data-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--mat-sys-outline-variant) 40%, transparent);
+  white-space: nowrap;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  font-size: 0.84rem;
+}
+.data-table tr:hover td { background: var(--mat-sys-surface-variant); }
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 3px 14px;
+  border-top: 1px solid var(--mat-sys-outline-variant);
+  flex-shrink: 0;
+  font-size: 0.75rem;
+}
+.page-info { min-width: 70px; text-align: center; opacity: 0.7; }
+.record-info { opacity: 0.5; margin-left: 12px; }
+
+.spinning { animation: spin 0.7s linear infinite; display: inline-block; }
+@keyframes spin { to { transform: rotate(360deg); } }

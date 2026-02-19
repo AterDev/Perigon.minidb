@@ -1,0 +1,80 @@
+<div class="connections-root">
+  <!-- Toolbar -->
+  <div class="conn-toolbar">
+    <span class="conn-toolbar-title">{{ 'nav.connections' | translate }}</span>
+    <button mat-icon-button (click)="openAddDialog()" matTooltip="{{ 'connection.add' | translate }}">
+      <mat-icon>add</mat-icon>
+    </button>
+  </div>
+
+  <!-- Connection list -->
+  <mat-nav-list class="conn-list">
+    @if (connections.length === 0) {
+      <div class="empty-state">
+        <mat-icon>storage</mat-icon>
+        <span>{{ 'connection.noConnections' | translate }}</span>
+      </div>
+    }
+
+    @for (conn of connections; track conn.id) {
+      <mat-list-item class="conn-item" [class.conn-item-active]="isActive(conn)">
+        <mat-icon matListItemIcon>storage</mat-icon>
+        <span matListItemTitle>{{ conn.name }}</span>
+        <span matListItemLine class="conn-path-line">{{ conn.path }}</span>
+
+        <div matListItemMeta class="conn-actions">
+          <button mat-icon-button
+            color="primary"
+            (click)="connect(conn)"
+            [disabled]="connectingId() === conn.id || isActive(conn)"
+            matTooltip="{{ (isActive(conn) ? 'connection.connected' : 'connection.connect') | translate }}">
+            @if (connectingId() === conn.id) {
+              <mat-spinner diameter="16" />
+            } @else if (isActive(conn)) {
+              <mat-icon>check_circle</mat-icon>
+            } @else {
+              <mat-icon>play_arrow</mat-icon>
+            }
+          </button>
+          <button mat-icon-button (click)="openEditDialog(conn)" matTooltip="{{ 'connection.edit' | translate }}">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="deleteConnection(conn)" matTooltip="{{ 'connection.delete' | translate }}">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      </mat-list-item>
+    }
+  </mat-nav-list>
+</div>
+
+<!-- Add/Edit Dialog -->
+@if (isDialogOpen()) {
+  <div class="dialog-backdrop" (click)="closeDialog()">
+    <div class="dialog-panel" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h3>{{ (isEditing() ? 'connection.edit' : 'connection.add') | translate }}</h3>
+        <button mat-icon-button (click)="closeDialog()"><mat-icon>close</mat-icon></button>
+      </div>
+      <div class="dialog-body">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'connection.name' | translate }}</mat-label>
+          <input matInput [ngModel]="dialogName()" (ngModelChange)="dialogName.set($event)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>{{ 'connection.path' | translate }}</mat-label>
+          <input matInput [ngModel]="dialogPath()" (ngModelChange)="dialogPath.set($event)" />
+          <button matSuffix mat-icon-button (click)="browseFile()">
+            <mat-icon>folder_open</mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+      <div class="dialog-footer">
+        <button mat-button (click)="closeDialog()">{{ 'connection.cancel' | translate }}</button>
+        <button mat-flat-button (click)="saveConnection()" [disabled]="!dialogName() || !dialogPath()">
+          {{ 'connection.save' | translate }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
