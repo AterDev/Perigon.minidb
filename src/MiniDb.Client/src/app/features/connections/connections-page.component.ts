@@ -124,6 +124,17 @@ export class ConnectionsPageComponent {
     this.emitStatus('info', 'status.connecting', { name: conn.name });
     try {
       await this.tauri.connectDatabase(conn.id, conn.path);
+      try {
+        const { emit } = await import('@tauri-apps/api/event');
+        await emit('minidb:connection-state', {
+          isConnected: true,
+          id: conn.id,
+          name: conn.name,
+        });
+      } catch {
+        // Ignore in non-Tauri context.
+      }
+
       window.dispatchEvent(new CustomEvent('minidb:connection-state', {
         detail: { isConnected: true, id: conn.id, name: conn.name }
       }));

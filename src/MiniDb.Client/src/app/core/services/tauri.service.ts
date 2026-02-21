@@ -58,4 +58,8 @@ export class TauriService {
   refreshDatabase(): Promise<string[]> {
     return invoke('refresh_database');
   }
+
+  openConnectionsManagerWindow(): Promise<void> {
+    return invoke('open_connections_manager_window');
+  }
 }

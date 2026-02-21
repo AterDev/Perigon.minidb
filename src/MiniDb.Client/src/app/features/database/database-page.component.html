@@ -63,7 +63,7 @@
             <mat-icon>filter_list</mat-icon>{{ 'filter.title' | translate }}
           </button>
           <mat-form-field appearance="outline" class="page-size-field" subscriptSizing="dynamic">
-            <mat-select [ngModel]="pageSize()" (ngModelChange)="setPageSize($event)">
+            <mat-select [ngModel]="pageSize()" (ngModelChange)="setPageSize($event)" [panelWidth]="120" panelClass="page-size-panel">
               <mat-option [value]="20">20</mat-option>
               <mat-option [value]="50">50</mat-option>
               <mat-option [value]="100">100</mat-option>

@@ -78,6 +78,7 @@ pub fn run() {
             commands::get_field_metadata,
             commands::load_table_data,
             commands::refresh_database,
+            commands::open_connections_manager_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

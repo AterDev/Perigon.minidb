@@ -1,4 +1,4 @@
-use tauri::State;
+use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 use crate::state::{AppState, DatabaseConnection, AppSettings};
 use crate::mds::reader;
 use crate::mds::types::FilterRequest;
@@ -182,4 +182,38 @@ pub async fn refresh_database(
     };
     
     connect_database(connection_id, file_path, state).await
+}
+
+/// Open (or focus) the native connections manager window
+#[tauri::command]
+pub async fn open_connections_manager_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("connections-manager") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    let window = WebviewWindowBuilder::new(
+        &app,
+        "connections-manager",
+        WebviewUrl::App("index.html".into()),
+    )
+    .title("Connection Manager")
+    .inner_size(860.0, 620.0)
+    .min_inner_size(640.0, 420.0)
+    .center()
+    .resizable(true)
+    .decorations(false)
+    .build()
+    .map_err(|e| e.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::{apply_blur, apply_mica};
+        if apply_mica(&window, None).is_err() {
+            let _ = apply_blur(&window, Some((24, 24, 24, 125)));
+        }
+    }
+
+    Ok(())
 }

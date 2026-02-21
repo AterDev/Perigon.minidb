@@ -11,6 +11,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { SettingsService } from './core/services/settings.service';
 import { ThemeService } from './core/services/theme.service';
 import { ConnectionService } from './core/services/connection.service';
+import { TauriService } from './core/services/tauri.service';
 
 import { ConnectionsPageComponent } from './features/connections/connections-page.component';
 import { DatabasePageComponent } from './features/database/database-page.component';
@@ -47,6 +48,7 @@ interface StatusEventDetail {
 })
 export class App implements OnInit, OnDestroy {
   readonly i18nEpoch = signal(0);
+  readonly isConnectionsManagerWindow = signal(false);
   readonly isMaximized = signal(false);
   readonly isConnected = signal(false);
   readonly connectedId = signal('');
@@ -58,6 +60,8 @@ export class App implements OnInit, OnDestroy {
   readonly statusParams = signal<Record<string, unknown> | undefined>(undefined);
   readonly statusText = signal('');
   private unlistenWindowResize?: () => void;
+  private unlistenTauriConnectionState?: () => void;
+  private unlistenTauriThemeChanged?: () => void;
 
   private readonly disconnectHandler = () => {
     this.applyConnectionState(false, '', '');
@@ -88,10 +92,12 @@ export class App implements OnInit, OnDestroy {
     private settings: SettingsService,
     private theme: ThemeService,
     private connections: ConnectionService,
+    private tauri: TauriService,
     private translate: TranslateService,
   ) {}
 
   async ngOnInit(): Promise<void> {
+    await this.detectWindowRole();
     await this.settings.load();
     await this.connections.load();
 
@@ -107,6 +113,14 @@ export class App implements OnInit, OnDestroy {
 
     this.theme.applyTheme();
     this.theme.watchSystemTheme();
+
+    await this.initializeTauriConnectionStateSync();
+    await this.initializeTauriThemeSync();
+
+    if (this.isConnectionsManagerWindow()) {
+      return;
+    }
+
     await this.initializeWindowStateSync();
   }
 
@@ -115,10 +129,17 @@ export class App implements OnInit, OnDestroy {
     window.removeEventListener('minidb:connection-state', this.connectionStateHandler as EventListener);
     window.removeEventListener('minidb:status', this.statusHandler as EventListener);
     this.unlistenWindowResize?.();
+    this.unlistenTauriConnectionState?.();
+    this.unlistenTauriThemeChanged?.();
   }
 
-  openConnectionsManager(): void {
-    this.showConnectionsManager.set(true);
+  async openConnectionsManager(): Promise<void> {
+    try {
+      await this.tauri.openConnectionsManagerWindow();
+    } catch {
+      // Browser fallback: still use in-page overlay.
+      this.showConnectionsManager.set(true);
+    }
   }
 
   closeConnectionsManager(): void {
@@ -131,7 +152,12 @@ export class App implements OnInit, OnDestroy {
       this.pushStatus('success', 'status.connectedAs', { name: event.name });
       window.dispatchEvent(new CustomEvent('minidb:refresh-request'));
     }
-    this.showConnectionsManager.set(false);
+
+    if (this.isConnectionsManagerWindow()) {
+      void this.closeWindow();
+    } else {
+      this.showConnectionsManager.set(false);
+    }
   }
 
   navigateToDatabase(): void {
@@ -164,6 +190,13 @@ export class App implements OnInit, OnDestroy {
   async setTheme(theme: 'light' | 'dark' | 'system'): Promise<void> {
     await this.settings.save({ theme });
     this.theme.applyTheme(theme);
+
+    try {
+      const { emit } = await import('@tauri-apps/api/event');
+      await emit('minidb:theme-changed', { theme });
+    } catch {
+      // Ignore in non-Tauri context.
+    }
   }
 
   showAboutDialog(): void {
@@ -233,6 +266,56 @@ export class App implements OnInit, OnDestroy {
       this.unlistenWindowResize = await appWindow.onResized(async () => {
         this.isMaximized.set(await appWindow.isMaximized());
       });
+    } catch {
+      // Ignore in non-Tauri context.
+    }
+  }
+
+  private async detectWindowRole(): Promise<void> {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      this.isConnectionsManagerWindow.set(getCurrentWindow().label === 'connections-manager');
+    } catch {
+      this.isConnectionsManagerWindow.set(false);
+    }
+  }
+
+  private async initializeTauriConnectionStateSync(): Promise<void> {
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      if (getCurrentWindow().label !== 'main') return;
+
+      const { listen } = await import('@tauri-apps/api/event');
+      this.unlistenTauriConnectionState = await listen<ConnectionStateEventDetail>(
+        'minidb:connection-state',
+        (event) => {
+          const detail = event.payload;
+          if (!detail) return;
+          this.applyConnectionState(detail.isConnected, detail.id ?? '', detail.name ?? '');
+          if (detail.isConnected) {
+            this.pushStatus('success', 'status.connectedAs', { name: detail.name ?? '' });
+            window.dispatchEvent(new CustomEvent('minidb:refresh-request'));
+          } else {
+            this.pushStatus('info', 'status.disconnected');
+          }
+        }
+      );
+    } catch {
+      // Ignore in non-Tauri context.
+    }
+  }
+
+  private async initializeTauriThemeSync(): Promise<void> {
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      this.unlistenTauriThemeChanged = await listen<{ theme?: 'light' | 'dark' | 'system' }>(
+        'minidb:theme-changed',
+        async (event) => {
+          const theme = event.payload?.theme;
+          if (!theme) return;
+          this.theme.applyTheme(theme);
+        }
+      );
     } catch {
       // Ignore in non-Tauri context.
     }

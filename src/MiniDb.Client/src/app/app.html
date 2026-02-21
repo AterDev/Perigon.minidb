@@ -1,113 +1,138 @@
-<div class="app-shell" [attr.data-i18n-epoch]="i18nEpoch()">
-  <!-- Custom titlebar (same row: menu + window controls) -->
-  <header class="window-titlebar">
-    <div class="titlebar-brand" data-tauri-drag-region>
-      <span class="brand-dot" data-tauri-drag-region></span>
-      <span class="brand-name" data-tauri-drag-region>{{ 'app.title' | translate }}</span>
-      @if (isConnected()) {
-        <span class="connected-chip" data-tauri-drag-region>{{ connectedName() }}</span>
-      }
-    </div>
+@if (isConnectionsManagerWindow()) {
+  <div class="connections-window-shell" [attr.data-i18n-epoch]="i18nEpoch()">
+    <header class="connections-window-titlebar">
+      <div class="connections-window-title" data-tauri-drag-region>
+        <img class="brand-logo" src="/assets/perigon_icon.png" alt="Perigon" data-tauri-drag-region />
+        <span data-tauri-drag-region>{{ 'menu.connectionManager' | translate }}</span>
+      </div>
+      <div class="connections-window-controls">
+        <button mat-icon-button class="btn-close" (click)="closeWindow()" [attr.aria-label]="'common.close' | translate">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </header>
 
-    <nav class="titlebar-menu">
-      <button mat-button [matMenuTriggerFor]="connectionMenu">{{ 'menu.connection' | translate }}</button>
-      <button mat-button [matMenuTriggerFor]="appearanceMenu">{{ 'menu.appearance' | translate }}</button>
-      <button mat-button [matMenuTriggerFor]="helpMenu">{{ 'menu.help' | translate }}</button>
-    </nav>
+    <main class="connections-window-content">
+      <app-connections-page
+        [isConnected]="isConnected()"
+        [connectedId]="connectedId()"
+        [connectedName]="connectedName()"
+        (connected)="onConnected($event)"
+      />
+    </main>
+  </div>
+} @else {
+  <div class="app-shell" [attr.data-i18n-epoch]="i18nEpoch()">
+    <!-- Custom titlebar (same row: menu + window controls) -->
+    <header class="window-titlebar">
+      <div class="titlebar-brand" data-tauri-drag-region>
+        <img class="brand-logo" src="/assets/perigon_icon.png" alt="Perigon" data-tauri-drag-region />
+        <span class="brand-name" data-tauri-drag-region>{{ 'app.title' | translate }}</span>
+        @if (isConnected()) {
+          <span class="connected-chip" data-tauri-drag-region>{{ connectedName() }}</span>
+        }
+      </div>
 
-    <div class="titlebar-drag-fill" data-tauri-drag-region></div>
+      <nav class="titlebar-menu">
+        <button mat-button [matMenuTriggerFor]="connectionMenu">{{ 'menu.connection' | translate }}</button>
+        <button mat-button [matMenuTriggerFor]="appearanceMenu">{{ 'menu.appearance' | translate }}</button>
+        <button mat-button [matMenuTriggerFor]="helpMenu">{{ 'menu.help' | translate }}</button>
+      </nav>
 
-    <div class="titlebar-controls">
-      <button mat-icon-button (click)="minimizeWindow()" aria-label="Minimize">
-        <mat-icon>remove</mat-icon>
+      <div class="titlebar-drag-fill" data-tauri-drag-region></div>
+
+      <div class="titlebar-controls">
+        <button mat-icon-button (click)="minimizeWindow()" aria-label="Minimize">
+          <mat-icon>remove</mat-icon>
+        </button>
+        <button mat-icon-button (click)="toggleMaximizeWindow()" [attr.aria-label]="isMaximized() ? 'Restore' : 'Maximize'">
+          <mat-icon>{{ isMaximized() ? 'filter_none' : 'crop_square' }}</mat-icon>
+        </button>
+        <button mat-icon-button class="btn-close" (click)="closeWindow()" aria-label="Close">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </header>
+
+    <mat-menu #connectionMenu="matMenu">
+      <button mat-menu-item (click)="openConnectionsManager()">{{ 'menu.connectionManager' | translate }}</button>
+      <button mat-menu-item (click)="navigateToDatabase()">{{ 'menu.database' | translate }}</button>
+      <button mat-menu-item [disabled]="!isConnected()" (click)="refreshDatabaseFromMenu()">{{ 'menu.refreshDatabase' | translate }}</button>
+    </mat-menu>
+
+    <mat-menu #appearanceMenu="matMenu">
+      <button mat-menu-item [matMenuTriggerFor]="themeMenu">{{ 'settings.theme' | translate }}</button>
+      <button mat-menu-item [matMenuTriggerFor]="languageMenu">{{ 'settings.language' | translate }}</button>
+    </mat-menu>
+
+    <mat-menu #themeMenu="matMenu">
+      <button mat-menu-item (click)="setTheme('light')">
+        <mat-icon>{{ currentTheme === 'light' ? 'check' : 'light_mode' }}</mat-icon>
+        <span>{{ 'theme.light' | translate }}</span>
       </button>
-      <button mat-icon-button (click)="toggleMaximizeWindow()" [attr.aria-label]="isMaximized() ? 'Restore' : 'Maximize'">
-        <mat-icon>{{ isMaximized() ? 'filter_none' : 'crop_square' }}</mat-icon>
+      <button mat-menu-item (click)="setTheme('dark')">
+        <mat-icon>{{ currentTheme === 'dark' ? 'check' : 'dark_mode' }}</mat-icon>
+        <span>{{ 'theme.dark' | translate }}</span>
       </button>
-      <button mat-icon-button class="btn-close" (click)="closeWindow()" aria-label="Close">
-        <mat-icon>close</mat-icon>
+      <button mat-menu-item (click)="setTheme('system')">
+        <mat-icon>{{ currentTheme === 'system' ? 'check' : 'devices' }}</mat-icon>
+        <span>{{ 'theme.system' | translate }}</span>
       </button>
-    </div>
-  </header>
+    </mat-menu>
 
-  <mat-menu #connectionMenu="matMenu">
-    <button mat-menu-item (click)="openConnectionsManager()">{{ 'menu.connectionManager' | translate }}</button>
-    <button mat-menu-item (click)="navigateToDatabase()">{{ 'menu.database' | translate }}</button>
-    <button mat-menu-item [disabled]="!isConnected()" (click)="refreshDatabaseFromMenu()">{{ 'menu.refreshDatabase' | translate }}</button>
-  </mat-menu>
+    <mat-menu #languageMenu="matMenu">
+      <button mat-menu-item (click)="switchLanguage('en')">
+        <mat-icon>{{ currentLanguage === 'en' ? 'check' : 'language' }}</mat-icon>
+        <span>{{ 'language.en' | translate }}</span>
+      </button>
+      <button mat-menu-item (click)="switchLanguage('zh-CN')">
+        <mat-icon>{{ currentLanguage === 'zh-CN' ? 'check' : 'translate' }}</mat-icon>
+        <span>{{ 'language.zhCN' | translate }}</span>
+      </button>
+    </mat-menu>
 
-  <mat-menu #appearanceMenu="matMenu">
-    <button mat-menu-item [matMenuTriggerFor]="themeMenu">{{ 'settings.theme' | translate }}</button>
-    <button mat-menu-item [matMenuTriggerFor]="languageMenu">{{ 'settings.language' | translate }}</button>
-  </mat-menu>
+    <mat-menu #helpMenu="matMenu">
+      <button mat-menu-item (click)="showAboutDialog()">{{ 'menu.about' | translate }}</button>
+    </mat-menu>
 
-  <mat-menu #themeMenu="matMenu">
-    <button mat-menu-item (click)="setTheme('light')">
-      <mat-icon>{{ currentTheme === 'light' ? 'check' : 'light_mode' }}</mat-icon>
-      <span>{{ 'theme.light' | translate }}</span>
-    </button>
-    <button mat-menu-item (click)="setTheme('dark')">
-      <mat-icon>{{ currentTheme === 'dark' ? 'check' : 'dark_mode' }}</mat-icon>
-      <span>{{ 'theme.dark' | translate }}</span>
-    </button>
-    <button mat-menu-item (click)="setTheme('system')">
-      <mat-icon>{{ currentTheme === 'system' ? 'check' : 'devices' }}</mat-icon>
-      <span>{{ 'theme.system' | translate }}</span>
-    </button>
-  </mat-menu>
+    <!-- Page content -->
+    <main class="app-content">
+      <app-database-page [isConnected]="isConnected()" [connectedName]="connectedName()" />
+    </main>
 
-  <mat-menu #languageMenu="matMenu">
-    <button mat-menu-item (click)="switchLanguage('en')">
-      <mat-icon>{{ currentLanguage === 'en' ? 'check' : 'language' }}</mat-icon>
-      <span>{{ 'language.en' | translate }}</span>
-    </button>
-    <button mat-menu-item (click)="switchLanguage('zh-CN')">
-      <mat-icon>{{ currentLanguage === 'zh-CN' ? 'check' : 'translate' }}</mat-icon>
-      <span>{{ 'language.zhCN' | translate }}</span>
-    </button>
-  </mat-menu>
+    <footer class="status-bar" [class.level-error]="statusLevel() === 'error'" [class.level-success]="statusLevel() === 'success'">
+      <div class="status-main">
+        <mat-icon>{{ statusIcon }}</mat-icon>
+        @if (statusText()) {
+          <span>{{ statusText() }}</span>
+        } @else {
+          <span>{{ statusKey() | translate: statusParams() }}</span>
+        }
+      </div>
+      <div class="status-right">
+        <span class="status-connection" [class.connected]="isConnected()" [class.disconnected]="!isConnected()">
+          {{ (isConnected() ? 'connection.connected' : 'connection.disconnected') | translate }}
+        </span>
+      </div>
+    </footer>
 
-  <mat-menu #helpMenu="matMenu">
-    <button mat-menu-item (click)="showAboutDialog()">{{ 'menu.about' | translate }}</button>
-  </mat-menu>
-
-  <!-- Page content -->
-  <main class="app-content">
-    <app-database-page [isConnected]="isConnected()" [connectedName]="connectedName()" />
-  </main>
-
-  <footer class="status-bar" [class.level-error]="statusLevel() === 'error'" [class.level-success]="statusLevel() === 'success'">
-    <div class="status-main">
-      <mat-icon>{{ statusIcon }}</mat-icon>
-      @if (statusText()) {
-        <span>{{ statusText() }}</span>
-      } @else {
-        <span>{{ statusKey() | translate: statusParams() }}</span>
-      }
-    </div>
-    <div class="status-right">
-      <span class="status-connection" [class.connected]="isConnected()" [class.disconnected]="!isConnected()">
-        {{ (isConnected() ? 'connection.connected' : 'connection.disconnected') | translate }}
-      </span>
-    </div>
-  </footer>
-
-  @if (showConnectionsManager()) {
-    <div class="connections-overlay" (click)="closeConnectionsManager()">
-      <section class="connections-dialog" (click)="$event.stopPropagation()">
-        <header class="connections-dialog-header" data-tauri-drag-region>
-          <span>{{ 'menu.connectionManager' | translate }}</span>
-          <button mat-icon-button (click)="closeConnectionsManager()" [attr.aria-label]="'common.close' | translate">
-            <mat-icon>close</mat-icon>
-          </button>
-        </header>
-        <app-connections-page
-          [isConnected]="isConnected()"
-          [connectedId]="connectedId()"
-          [connectedName]="connectedName()"
-          (connected)="onConnected($event)"
-        />
-      </section>
-    </div>
-  }
-</div>
+    @if (showConnectionsManager()) {
+      <div class="connections-overlay" (click)="closeConnectionsManager()">
+        <section class="connections-dialog" (click)="$event.stopPropagation()">
+          <header class="connections-dialog-header">
+            <span>{{ 'menu.connectionManager' | translate }}</span>
+            <button mat-icon-button (click)="closeConnectionsManager()" [attr.aria-label]="'common.close' | translate">
+              <mat-icon>close</mat-icon>
+            </button>
+          </header>
+          <app-connections-page
+            [isConnected]="isConnected()"
+            [connectedId]="connectedId()"
+            [connectedName]="connectedName()"
+            (connected)="onConnected($event)"
+          />
+        </section>
+      </div>
+    }
+  </div>
+}
