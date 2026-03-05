@@ -301,6 +301,10 @@ FakesAssemblies/
 .ntvs_analysis.dat
 node_modules/
 
+# Tauri generated artifacts (cache/schema)
+src/MiniDb.Client/src-tauri/target/
+src/MiniDb.Client/src-tauri/gen/schemas/
+
 # Visual Studio 6 build log
 *.plg
 

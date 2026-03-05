@@ -52,7 +52,6 @@ public class DataTypeBoundaryTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await BoundaryTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -79,8 +78,7 @@ public class DataTypeBoundaryTests : IAsyncDisposable
             await db.SaveChangesAsync();
             await db.DisposeAsync();
 
-            // Release cache to force reload from file (where truncation happens)
-            await TinyStringDbContext.ReleaseSharedCacheAsync(tinyPath);
+            // Force reload from file (where truncation happens)
 
             // Reload and verify truncation
             var db2 = new TinyStringDbContext();
@@ -91,7 +89,6 @@ public class DataTypeBoundaryTests : IAsyncDisposable
             Assert.True(actualBytes <= 5, $"String was {actualBytes} bytes, expected <= 5 bytes. Value: '{loaded.TinyString}'");
 
             await db2.DisposeAsync();
-            await TinyStringDbContext.ReleaseSharedCacheAsync(tinyPath);
         }
         finally
         {
@@ -277,14 +274,12 @@ public class DataTypeBoundaryTests : IAsyncDisposable
             await db.DisposeAsync();
 
             // Reload
-            await LargeStringDbContext.ReleaseSharedCacheAsync(largePath);
             var db2 = new LargeStringDbContext();
             var loaded = db2.LargeStrings.First();
             
             Assert.Equal(4900, loaded.LargeString.Length);
             
             await db2.DisposeAsync();
-            await LargeStringDbContext.ReleaseSharedCacheAsync(largePath);
         }
         finally
         {

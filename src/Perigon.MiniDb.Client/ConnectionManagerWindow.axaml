@@ -1,0 +1,63 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Perigon.MiniDb.Client.ViewModels"
+        xmlns:models="using:Perigon.MiniDb.Client.Models"
+        x:Class="Perigon.MiniDb.Client.ConnectionManagerWindow"
+  x:DataType="vm:MainViewModelV2"
+        Width="900"
+        Height="560"
+        MinWidth="760"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        Icon="avares://Perigon.MiniDb.Client/Resources/perigon_icon.png"
+        Background="{DynamicResource ThemeBackgroundBrush}"
+        Title="{DynamicResource Window.ConnectionManager.Title}"
+        mc:Ignorable="d">
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="4">
+    <StackPanel Spacing="4">
+      <TextBlock Text="{DynamicResource Section.ConnectionConfig}" FontSize="18" FontWeight="SemiBold" />
+      <TextBox Watermark="{DynamicResource Label.SearchConnectionWatermark}" Text="{Binding ConnectionSearchText}" />
+    </StackPanel>
+
+    <Grid Grid.Row="1" Margin="0,4,0,4" ColumnDefinitions="320,4,*">
+      <Border Background="{DynamicResource ThemeControlMidBrush}" CornerRadius="8" Padding="4">
+        <ListBox ItemsSource="{Binding Connections}" SelectedItem="{Binding SelectedConnection}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="models:DatabaseConnection">
+              <StackPanel Spacing="2">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Path}" FontSize="12" Opacity="0.8" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <Border Grid.Column="2" Background="{DynamicResource ThemeControlMidBrush}" CornerRadius="8" Padding="4">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{DynamicResource Section.ConnectionConfig}" FontWeight="SemiBold" FontSize="16" />
+          <TextBox Watermark="{DynamicResource Label.ConnectionNameWatermark}" Text="{Binding NewConnectionName}" />
+          <TextBox Watermark="{DynamicResource Label.DbPathWatermark}" Text="{Binding NewConnectionPath}" />
+
+          <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button Content="{DynamicResource Button.Browse}" Click="BrowseConnectionPath_Click" />
+            <Button Content="{DynamicResource Button.Add}" Command="{Binding AddConnectionCommand}" />
+            <Button Content="{DynamicResource Button.Update}" Command="{Binding EditConnectionCommand}" />
+            <Button Content="{DynamicResource Button.Delete}" Command="{Binding DeleteConnectionCommand}" />
+          </StackPanel>
+
+          <TextBlock Text="{Binding SelectedConnectionPathDisplay}" Opacity="0.75" TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="4">
+      <TextBlock VerticalAlignment="Center" Text="{Binding StatusMessage}" />
+      <Button Grid.Column="1" Content="{DynamicResource Button.Connect}" Click="OpenSelectedConnection_Click" />
+      <Button Grid.Column="2" Content="{DynamicResource Button.Close}" Click="Close_Click" />
+    </Grid>
+  </Grid>
+</Window>

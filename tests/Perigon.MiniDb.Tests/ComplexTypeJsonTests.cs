@@ -84,7 +84,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -121,8 +120,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             Assert.Contains("New York", user.AddressJsonString);
         }
 
-        // Reload and verify deserialization
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -165,8 +162,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // 2. 重新加载并验证复杂类型
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -205,8 +200,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             Assert.Equal(string.Empty, user.AddressJsonString);
         }
 
-        // Reload
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -253,8 +246,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // 重新加载并验证更新
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -291,8 +282,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // 重新加载并验证中文
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -343,8 +332,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // 重新加载并验证所有地址
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {
@@ -382,8 +369,6 @@ public class ComplexTypeJsonTests : IAsyncDisposable
             await db.SaveChangesAsync();
         }
 
-        // 重新加载
-        await ComplexTypeTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new ComplexTypeTestContext();
         await using (db2)
         {

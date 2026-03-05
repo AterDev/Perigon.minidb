@@ -1,184 +1,6 @@
-using System.Collections.Frozen;
-using System.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
-using Perigon.MiniDb;
 
 namespace Perigon.MiniDb.Tests;
-
-#region Test Entities
-
-/// <summary>
-/// Solution entity with enums, JSON, and multiple string properties
-/// </summary>
-public class Solution : IMicroEntity
-{
-    public int Id { get; set; }
-
-    [MaxLength(100)]
-    public string Name { get; set; } = string.Empty;
-
-    [MaxLength(100)]
-    public string DisplayName { get; set; } = string.Empty;
-
-    [MaxLength(200)]
-    public string Path { get; set; } = string.Empty;
-
-    [MaxLength(20)]
-    public string? Version { get; set; }
-
-    public SolutionType? SolutionType { get; set; }
-
-    [MaxLength(2000)]
-    public string ConfigJsonString { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Project entity with multiple enum and string properties
-/// </summary>
-public class Project : IMicroEntity
-{
-    public int Id { get; set; }
-
-    [MaxLength(150)]
-    public string ProjectName { get; set; } = string.Empty;
-
-    [MaxLength(300)]
-    public string ProjectPath { get; set; } = string.Empty;
-
-    [MaxLength(50)]
-    public string? FrameworkVersion { get; set; }
-
-    public ProjectType ProjectType { get; set; }
-
-    public ProjectStatus Status { get; set; }
-
-    [MaxLength(500)]
-    public string? Description { get; set; }
-
-    public DateTime CreatedAt { get; set; }
-
-    public DateTime? LastModified { get; set; }
-
-    public int? SolutionId { get; set; }
-}
-
-/// <summary>
-/// API Documentation entity with JSON storage
-/// </summary>
-public class ApiDocumentation : IMicroEntity
-{
-    public int Id { get; set; }
-
-    [MaxLength(200)]
-    public string ApiName { get; set; } = string.Empty;
-
-    [MaxLength(1000)]
-    public string Endpoint { get; set; } = string.Empty;
-
-    public ApiMethodType MethodType { get; set; }
-
-    [MaxLength(5000)]
-    public string JsonSchema { get; set; } = string.Empty;
-
-    public bool IsPublished { get; set; }
-
-    public DateTime CreatedAt { get; set; }
-
-    public int? ProjectId { get; set; }
-}
-
-/// <summary>
-/// Configuration entity to test variable-length string storage
-/// </summary>
-public class AppConfiguration : IMicroEntity
-{
-    public int Id { get; set; }
-
-    [MaxLength(100)]
-    public string ConfigKey { get; set; } = string.Empty;
-
-    [MaxLength(500)]
-    public string ConfigValue { get; set; } = string.Empty;
-
-    public ConfigType ConfigType { get; set; }
-
-    public bool IsEncrypted { get; set; }
-
-    public DateTime UpdatedAt { get; set; }
-}
-
-#endregion
-
-#region Enums
-
-public enum SolutionType
-{
-    [Description("DotNet")]
-    DotNet = 1,
-
-    [Description("Node")]
-    Node = 2,
-
-    [Description("Python")]
-    Python = 3,
-
-    [Description("Else")]
-    Else = 4,
-}
-
-public enum ProjectType
-{
-    [Description("ClassLibrary")]
-    ClassLibrary = 1,
-
-    [Description("ConsoleApp")]
-    ConsoleApp = 2,
-
-    [Description("WebApi")]
-    WebApi = 3,
-
-    [Description("WebApp")]
-    WebApp = 4,
-}
-
-public enum ProjectStatus
-{
-    Active = 1,
-    Archived = 2,
-    Deleted = 3,
-}
-
-public enum ApiMethodType
-{
-    Get = 1,
-    Post = 2,
-    Put = 3,
-    Delete = 4,
-    Patch = 5,
-}
-
-public enum ConfigType
-{
-    String = 1,
-    Number = 2,
-    Boolean = 3,
-    Json = 4,
-}
-
-#endregion
-
-#region Test Context
-
-public class ComplexDbContext : MiniDbContext
-{
-    public DbSet<Solution> Solutions { get; set; } = null!;
-    public DbSet<Project> Projects { get; set; } = null!;
-    public DbSet<ApiDocumentation> ApiDocumentations { get; set; } = null!;
-    public DbSet<AppConfiguration> Configurations { get; set; } = null!;
-}
-
-#endregion
 
 #region Tests
 
@@ -197,7 +19,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         if (File.Exists(_testDbPath))
         {
@@ -263,9 +84,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             Assert.Equal(25, db1.ApiDocumentations.Count);
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Cycle 2: Update some records and delete some records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -307,9 +125,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Cycle 3: Reload and verify counts and Id uniqueness are correct
         var db3 = new ComplexDbContext();
@@ -400,7 +215,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
                     Name = "PythonSolution",
                     DisplayName = "Python Solution",
                     Path = "C:\\Projects\\Python",
-                    SolutionType = SolutionType.Python,
+                    SolutionType = SolutionType.Else,
                     ConfigJsonString = JsonSerializer.Serialize(new { pythonVersion = "3.11" })
                 }
             };
@@ -431,7 +246,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             Assert.Equal(SolutionType.DotNet, dotnet.SolutionType);
             Assert.Equal(SolutionType.Node, node.SolutionType);
-            Assert.Equal(SolutionType.Python, python.SolutionType);
+            Assert.Equal(SolutionType.Else, python.SolutionType);
 
             Assert.NotEmpty(node.ConfigJsonString);
             Assert.NotEmpty(python.ConfigJsonString);
@@ -481,10 +296,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             Assert.Equal(1, project.Id);
         }
-
-        // Release and reload
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Verify both tables loaded correctly
         var db3 = new ComplexDbContext();
@@ -614,9 +425,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Cycle 2: Add projects
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -637,9 +445,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             }
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Cycle 3: Add API docs
         var db3 = new ComplexDbContext();
@@ -663,9 +468,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             }
             await db3.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Final verification
         var db4 = new ComplexDbContext();
@@ -712,9 +514,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Update: Modify records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -731,9 +530,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
 
             await db2.SaveChangesAsync();
         }
-
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
 
         // Verify: Check updates persisted
         var db3 = new ComplexDbContext();
@@ -771,7 +567,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
                 Name = "WithType",
                 DisplayName = "With Type",
                 Path = "C:\\WithType",
-                SolutionType = SolutionType.Python,
+                SolutionType = SolutionType.Else,
                 ConfigJsonString = "{}"
             };
 
@@ -780,7 +576,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db.SaveChangesAsync();
 
             Assert.Null(solution1.SolutionType);
-            Assert.Equal(SolutionType.Python, solution2.SolutionType);
+            Assert.Equal(SolutionType.Else, solution2.SolutionType);
         }
 
         // Reload and verify null handling
@@ -792,7 +588,7 @@ public class ComplexDataAccessTests : IAsyncDisposable
             var withEnum = solutions.First(s => s.Name == "WithType");
 
             Assert.Null(nullEnum.SolutionType);
-            Assert.Equal(SolutionType.Python, withEnum.SolutionType);
+            Assert.Equal(SolutionType.Else, withEnum.SolutionType);
         }
     }
 
@@ -832,9 +628,6 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db1.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Delete records
         var db2 = new ComplexDbContext();
         await using (db2)
@@ -851,16 +644,13 @@ public class ComplexDataAccessTests : IAsyncDisposable
             await db2.SaveChangesAsync();
         }
 
-        await ComplexDbContext.ReleaseSharedCacheAsync(_testDbPath);
-        await Task.Delay(10);
-
         // Verify deletions
         var db3 = new ComplexDbContext();
         await using (db3)
         {
-            Assert.Empty(db3.Solutions.Where(s => s.Name == "ToDelete"));
-            Assert.Empty(db3.Projects.Where(p => p.ProjectName == "ToDelete"));
-            Assert.Empty(db3.Configurations.Where(c => c.ConfigKey == "ToDelete"));
+            Assert.DoesNotContain(db3.Solutions, s => s.Name == "ToDelete");
+            Assert.DoesNotContain(db3.Projects, p => p.ProjectName == "ToDelete");
+            Assert.DoesNotContain(db3.Configurations, c => c.ConfigKey == "ToDelete");
         }
     }
 
@@ -898,7 +688,8 @@ public class ComplexDataAccessTests : IAsyncDisposable
             Assert.Equal(100, loaded.Name.Length);
             Assert.Equal(100, loaded.DisplayName.Length);
             Assert.Equal(200, loaded.Path.Length);
-            Assert.Equal(20, loaded.Version.Length);
+            Assert.NotNull(loaded.Version);
+            Assert.Equal(20, loaded.Version!.Length);
             Assert.Equal(2000, loaded.ConfigJsonString.Length);
         }
     }

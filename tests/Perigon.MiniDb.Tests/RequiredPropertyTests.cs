@@ -130,7 +130,6 @@ public class RequiredPropertyTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await RequiredTestContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -178,7 +177,6 @@ public class RequiredPropertyTests : IAsyncDisposable
         }
 
         // 重新加载
-        await RequiredTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new RequiredTestContext();
         await using (db2)
         {
@@ -215,7 +213,6 @@ public class RequiredPropertyTests : IAsyncDisposable
         }
 
         // 重新加载并验证
-        await RequiredTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new RequiredTestContext();
         await using (db2)
         {
@@ -242,15 +239,6 @@ public class EnumTypeTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
-        try
-        {
-            await InvalidLongEnumContext.ReleaseSharedCacheAsync(_testDbPath);
-        }
-        catch
-        {
-            // ignore cleanup failures for contexts that may never initialize
-        }
         await Task.Delay(10);
 
         if (File.Exists(_testDbPath))
@@ -281,7 +269,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // 重新加载并验证
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -321,7 +308,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify all values
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -359,7 +345,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify nullable enum values
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -394,7 +379,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify nullable enum null values
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -431,7 +415,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify updated enum values
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -468,7 +451,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify deletion
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -498,7 +480,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
 
         // Reload and verify all enum types
-        await EnumTestContext.ReleaseSharedCacheAsync(_testDbPath);
         var db2 = new EnumTestContext();
         await using (db2)
         {
@@ -577,15 +558,6 @@ public class EnumTypeTests : IAsyncDisposable
         }
         finally
         {
-            try
-            {
-                await InvalidLongEnumContext.ReleaseSharedCacheAsync(path);
-            }
-            catch
-            {
-                // ignore cleanup failures
-            }
-
             if (File.Exists(path))
             {
                 File.Delete(path);

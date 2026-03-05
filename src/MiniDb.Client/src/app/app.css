@@ -1,0 +1,306 @@
+.app-shell {
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  overflow:hidden;
+  background:
+    radial-gradient(1200px 500px at 100% -10%, color-mix(in srgb, var(--mat-sys-primary) 12%, transparent), transparent),
+    var(--mat-sys-background);
+}
+
+.connections-window-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background:
+    radial-gradient(900px 420px at 100% -10%, color-mix(in srgb, var(--mat-sys-primary) 10%, transparent), transparent),
+    var(--mat-sys-background);
+}
+
+.connections-window-titlebar {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--ui-glass-strong);
+  border-bottom: 1px solid var(--ui-hairline);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+}
+
+.connections-window-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  padding: 0 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  user-select: none;
+}
+
+.connections-window-controls {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+
+.connections-window-controls button {
+  -webkit-app-region: no-drag;
+  width: 46px;
+  height: 40px;
+  border-radius: 0;
+}
+
+.connections-window-controls button mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.connections-window-controls .btn-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.connections-window-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.connections-window-content > app-connections-page {
+  display: block;
+  height: 100%;
+}
+.app-content { flex:1; overflow:hidden; display:flex; flex-direction:column; }
+
+/* Ensure child page host stretches and allows inner scrolling containers */
+.app-content > app-database-page {
+  display: block;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.window-titlebar {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  background: var(--ui-glass-strong);
+  border-bottom: 1px solid var(--ui-hairline);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+}
+
+/* Tauri custom titlebar drag regions (recommended by docs) */
+*[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+.titlebar-menu button,
+.titlebar-controls button {
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 100%;
+  user-select: none;
+}
+
+.brand-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, #000 30%, transparent));
+}
+
+.brand-name {
+  font-size: 0.98rem;
+  font-weight: 600;
+  opacity: 0.92;
+}
+
+.titlebar-menu {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+
+.titlebar-menu button {
+  min-width: auto;
+  height: 40px;
+  border-radius: 0;
+  padding: 0 12px;
+  font-size: 0.92rem;
+}
+
+.titlebar-drag-fill {
+  flex: 1;
+  height: 100%;
+}
+
+.titlebar-controls {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+
+.titlebar-controls button {
+  width: 46px;
+  height: 40px;
+  border-radius: 0;
+}
+
+.titlebar-controls button mat-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.titlebar-controls .btn-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.status-bar {
+  height: 30px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  border-top: 1px solid var(--ui-hairline);
+  background: var(--ui-glass-strong);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  font-size: 0.74rem;
+}
+
+.status-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.88;
+}
+
+.status-main mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+
+.status-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-connection {
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.status-connection.connected {
+  background: color-mix(in srgb, #2e7d32 85%, transparent);
+  color: #fff;
+}
+
+.status-connection.disconnected {
+  background: color-mix(in srgb, var(--mat-sys-outline) 45%, transparent);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.status-bar.level-success .status-main {
+  color: #2e7d32;
+}
+
+.status-bar.level-error .status-main {
+  color: var(--mat-sys-error);
+}
+
+/* Connected chip */
+.connected-chip {
+  background: #2e7d32;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-left: 4px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connections-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1400;
+  background: color-mix(in srgb, #000 35%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.connections-dialog {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(860px, 92vw);
+  height: min(620px, 88vh);
+  border-radius: 10px;
+  border: 1px solid var(--ui-hairline);
+  background: var(--ui-glass-strong);
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.connections-dialog-header {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--ui-hairline);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+}
+
+.connections-dialog.dragging .connections-dialog-header {
+  cursor: grabbing;
+}
+
+.connections-dialog-header button {
+  -webkit-app-region: no-drag;
+}
+
+.connections-dialog app-connections-page {
+  display: block;
+  height: calc(100% - 40px);
+}

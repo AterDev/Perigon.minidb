@@ -1,0 +1,106 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="using:System">
+  <!-- App -->
+  <sys:String x:Key="App.Title">Perigon MiniDB Manager</sys:String>
+
+  <!-- Window -->
+  <sys:String x:Key="Window.ConnectionManager.Title">Manage connections</sys:String>
+
+  <!-- Menu -->
+  <sys:String x:Key="Menu.Connection">Connection</sys:String>
+  <sys:String x:Key="Menu.ManageConnections">Manage connections...</sys:String>
+  <sys:String x:Key="Menu.Appearance">Appearance</sys:String>
+  <sys:String x:Key="Menu.Theme.Light">Light</sys:String>
+  <sys:String x:Key="Menu.Theme.Dark">Dark</sys:String>
+  <sys:String x:Key="Menu.Theme.System">Follow system</sys:String>
+  <sys:String x:Key="Menu.ToggleGlass">Enable glass effect</sys:String>
+  <sys:String x:Key="Menu.Language">Language</sys:String>
+  <sys:String x:Key="Menu.Help">Help</sys:String>
+  <sys:String x:Key="Menu.OpenRepo">Open repository</sys:String>
+  <sys:String x:Key="Menu.OpenIssues">Open issues</sys:String>
+
+  <!-- Sections -->
+  <sys:String x:Key="Section.Tables">Tables</sys:String>
+  <sys:String x:Key="Section.ConnectionConfig">Connection configuration</sys:String>
+
+  <!-- Labels -->
+  <sys:String x:Key="Label.SearchTableWatermark">Search tables</sys:String>
+  <sys:String x:Key="Label.SearchConnectionWatermark">Search connections</sys:String>
+  <sys:String x:Key="Label.ConnectionNameWatermark">Connection name</sys:String>
+  <sys:String x:Key="Label.DbPathWatermark">Database file path (*.mds)</sys:String>
+  <sys:String x:Key="Label.FilterWatermark">Enter text to match</sys:String>
+  <sys:String x:Key="Label.NoDataTitle">No data to display</sys:String>
+  <sys:String x:Key="Label.NoConnection">Open a database from Connection > Manage connections first</sys:String>
+  <sys:String x:Key="Label.NotSelectedTable">No table selected</sys:String>
+  <sys:String x:Key="Label.NoSelectedConnection">No connection selected</sys:String>
+  <sys:String x:Key="Label.AddOrSelectConnectionFirst">Add or select a connection first</sys:String>
+  <sys:String x:Key="Label.SelectTableToView">Select a table on the left to view data</sys:String>
+  <sys:String x:Key="Label.NoDataForFilter">No data for current filter conditions</sys:String>
+
+  <!-- Status -->
+  <sys:String x:Key="Status.Ready">Ready.</sys:String>
+  <sys:String x:Key="Status.Connected">Connected</sys:String>
+  <sys:String x:Key="Status.Disconnected">Disconnected</sys:String>
+  <sys:String x:Key="Status.LanguageChanged">Language changed</sys:String>
+
+  <!-- Buttons -->
+  <sys:String x:Key="Button.Connect">Connect</sys:String>
+  <sys:String x:Key="Button.Disconnect">Disconnect</sys:String>
+  <sys:String x:Key="Button.CreateSample">Create sample DB</sys:String>
+  <sys:String x:Key="Button.ResetView">Reset view</sys:String>
+  <sys:String x:Key="Button.Apply">Apply</sys:String>
+  <sys:String x:Key="Button.Clear">Clear</sys:String>
+  <sys:String x:Key="Button.FirstPage">First</sys:String>
+  <sys:String x:Key="Button.PrevPage">Previous</sys:String>
+  <sys:String x:Key="Button.NextPage">Next</sys:String>
+  <sys:String x:Key="Button.LastPage">Last</sys:String>
+  <sys:String x:Key="Button.Browse">Browse</sys:String>
+  <sys:String x:Key="Button.Add">Add</sys:String>
+  <sys:String x:Key="Button.Update">Update</sys:String>
+  <sys:String x:Key="Button.Delete">Delete</sys:String>
+  <sys:String x:Key="Button.Close">Close</sys:String>
+
+  <!-- Dialogs -->
+  <sys:String x:Key="Dialog.SelectMiniDbFile">Select MiniDB file</sys:String>
+  <sys:String x:Key="Dialog.CreateSampleDb">Create sample database</sys:String>
+
+  <!-- Messages -->
+  <sys:String x:Key="Message.SelectConnectionFirst">Please select a connection first.</sys:String>
+  <sys:String x:Key="Message.ConnectionAdded">Connection '{0}' added.</sys:String>
+  <sys:String x:Key="Message.ConnectionUpdated">Connection '{0}' updated.</sys:String>
+  <sys:String x:Key="Message.ConnectionDeleted">Connection '{0}' deleted.</sys:String>
+  <sys:String x:Key="Message.AddConnectionFailed">Failed to add connection: {0}</sys:String>
+  <sys:String x:Key="Message.UpdateConnectionFailed">Failed to update connection: {0}</sys:String>
+  <sys:String x:Key="Message.DeleteConnectionFailed">Failed to delete connection: {0}</sys:String>
+  <sys:String x:Key="Message.DatabaseFileNotFound">Database file not found.</sys:String>
+  <sys:String x:Key="Message.DatabaseFileNotFoundWithPath">Database file not found: {0}</sys:String>
+  <sys:String x:Key="Message.ConnectedTo">Connected: {0}</sys:String>
+  <sys:String x:Key="Message.ConnectionFailed">Connection failed: {0}</sys:String>
+  <sys:String x:Key="Message.ReleaseCacheFailed">Failed to release shared cache: {0}</sys:String>
+  <sys:String x:Key="Message.Disconnected">Disconnected.</sys:String>
+  <sys:String x:Key="Message.ReadTableDataFailed">Failed to read table data: {0}</sys:String>
+  <sys:String x:Key="Message.LoadTableDataFailed">Failed to load table data: {0}</sys:String>
+  <sys:String x:Key="Message.LoadedTableWithCount">Loaded '{0}' with {1} records.</sys:String>
+  <sys:String x:Key="Message.FilterCompleted">Filter completed: {0}/{1}.</sys:String>
+  <sys:String x:Key="Message.NoFieldMetadata">This file was created by an older engine version without field metadata. Only raw data is displayed. Please recreate the database with the current engine.</sys:String>
+  <sys:String x:Key="Message.FieldSizeMismatch">Field metadata does not match record size. Only raw data is displayed. The file may be corrupted or the entity schema has changed.</sys:String>
+  <sys:String x:Key="Message.UnsupportedFileFormat">Unsupported file format: missing field metadata.</sys:String>
+  <sys:String x:Key="Message.UnsupportedFileFormatDetail">Unsupported file format: the following tables are missing field metadata. Please recreate with the current engine: {0}</sys:String>
+  <sys:String x:Key="Message.FilterCleared">Filter cleared.</sys:String>
+  <sys:String x:Key="Message.SampleDbCreated">Sample database created: {0}</sys:String>
+  <sys:String x:Key="Message.SampleDbCreateFailed">Failed to create sample database: {0}</sys:String>
+  <sys:String x:Key="Message.UnableToGetTargetPath">Unable to get target file path.</sys:String>
+  <sys:String x:Key="Message.RepositoryOpened">Repository opened in browser.</sys:String>
+  <sys:String x:Key="Message.OpenRepositoryFailed">Failed to open repository: {0}</sys:String>
+  <sys:String x:Key="Message.IssuesOpened">Issues page opened.</sys:String>
+  <sys:String x:Key="Message.OpenIssuesFailed">Failed to open issues page: {0}</sys:String>
+
+  <!-- Formats -->
+  <sys:String x:Key="Format.TableTitle">Table: {0}</sys:String>
+  <sys:String x:Key="Format.PageSummary">Page {0}/{1}, {2} per page</sys:String>
+  <sys:String x:Key="Format.FilterSummary">Showing {0} items ({1} after filter)</sys:String>
+  <sys:String x:Key="Format.TableCount">{0} tables</sys:String>
+  <sys:String x:Key="Format.FilteredCount">Filtered {0}</sys:String>
+  <sys:String x:Key="Format.RawCount">Raw {0}</sys:String>
+</ResourceDictionary>

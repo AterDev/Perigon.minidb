@@ -1,24 +1,35 @@
 # Perigon MiniDB Client
 
-基于 **.NET MAUI + Blazor Hybrid + Fluent UI** 的 MiniDB 桌面管理工具（Windows / macOS）。
+基于 **Avalonia + .NET 10** 的轻量数据库浏览工具，用于打开 MiniDB 文件、浏览表数据、分页查看与字段筛选。
 
 ## 当前能力
 
-- 连接管理（新增/更新/删除），本地持久化
-- 连接后自动加载表列表与数据
-- 分页浏览（首页/上一页/下一页/末页）
-- 快速关键字筛选
+- 连接管理（新增/更新/删除），本地持久化保存
+- 连接选择后自动加载表列表
+- 表数据分页浏览（首页/上一页/下一页/末页）
+- 字段筛选（`Contains/Equals/NotEquals/>/>=/</<=/Between`）
+- 多条件 `AND` 组合筛选
 - 连接与表搜索
 - 主题切换（浅色/深色/跟随系统）
-- 中英文切换（持久化）
-- 原生菜单动作联动页面（连接/断开/刷新）
+- 中英文界面切换（可持久化）
+- Windows 毛玻璃效果（支持时启用，自动降级）
+- 视图偏好持久化（主题/毛玻璃）
+- 帮助菜单一键打开仓库地址与问题反馈（Issues）
+
+## Language & Help Menu
+
+- 顶部菜单 `语言 / Language` 可切换 `中文` 与 `English`
+- 语言偏好会自动保存，重启后仍生效
+- 顶部菜单 `帮助 / Help` 提供：
+	- `打开仓库地址 / Open repository`
+	- `打开问题反馈 / Open issues`
 
 ## 技术栈
 
-- **Framework**: .NET 10
-- **Shell/UI**: MAUI + BlazorWebView
-- **Components**: Microsoft Fluent UI for Blazor
-- **Pattern**: MVVM + Service 分层
+- **Framework**: .NET 10.0
+- **UI**: Avalonia 11
+- **Pattern**: MVVM
+- **Platform**: Windows x64（当前主要目标）
 
 ## 运行方式
 
@@ -27,17 +38,29 @@ dotnet build src/Perigon.MiniDb.Client/Perigon.MiniDb.Client.csproj
 dotnet run --project src/Perigon.MiniDb.Client/Perigon.MiniDb.Client.csproj
 ```
 
-## 关键目录
+## 目录概览
 
-- `MainPage.xaml` / `MainPage.xaml.cs`：MAUI 页面壳与原生菜单
-- `AppHost.razor` / `AppHost.razor.cs`：Blazor 主页面与交互逻辑
-- `ViewModels/MainViewModel.cs`：状态编排与命令
-- `Services/`：连接会话、筛选分页、本地化、状态语义等服务
-- `Services/MiniDbFileDriver.cs`：客户端驱动层（直接读取文件元数据与记录）
+- `MainWindow.axaml` / `MainWindow.xaml.cs`：主界面与交互
+- `ViewModels/MainViewModelV2.cs`：连接、表加载、分页、筛选、状态管理（MVVM Toolkit）
+- `Services/DatabaseConnectionService.cs`：连接持久化
+- `Services/ClientSettingsService.cs`：视图偏好持久化
+- `Models/DatabaseConnection.cs`：连接模型
+- `Models/FilterCondition.cs`：筛选条件模型
+- `Sample/SampleDbContext.cs`：示例数据上下文
 
-## Schema 解析说明
+## 已知限制
 
-客户端仅使用 `.mds` 文件内嵌的 schema（由 MiniDb v2+ 在创建时写入）进行结构化解析。
+- 当前采用已知 `DbContext` 模式（`SampleDbContext`）读取数据
+- 不支持任意未知结构 `.mds` 的动态 schema 浏览
+- 主要定位为单机轻量浏览工具，不面向多用户并发编辑
 
-- v2+ 且 schema 完整：按内嵌字段定义展示列数据
-- v1 或 schema 缺失/损坏：连接阶段直接判定为无效数据库文件并提示，不进入 `RawText` 回退展示
+## 快速自测清单（发布前）
+
+- [ ] 添加连接并重启应用，连接仍存在
+- [ ] 连接后可看到表列表，切换表可加载数据
+- [ ] 分页按钮（首页/上一页/下一页/末页）行为正确
+- [ ] 添加多个筛选条件（AND）后查询结果正确
+- [ ] 点击已有筛选条件可回填到编辑区
+- [ ] 语言切换后界面主要文案和筛选操作符显示正确
+- [ ] 帮助菜单可正常打开仓库与 issues 页面
+- [ ] Win11 下毛玻璃生效；不支持环境自动降级且可正常使用

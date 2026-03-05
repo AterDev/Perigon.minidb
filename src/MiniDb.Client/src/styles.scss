@@ -1,0 +1,56 @@
+@use '@angular/material' as mat;
+
+/* ─── Light theme (default) ───────────────────────────────────────────────── */
+html {
+  color-scheme: light;
+  @include mat.theme((
+    color: (
+      theme-type: light,
+      primary: mat.$azure-palette,
+    ),
+    typography: (
+      brand-family: "'Segoe UI', system-ui, sans-serif",
+      plain-family: "'Segoe UI', system-ui, sans-serif",
+    ),
+    density: -2,
+  ));
+
+  --ui-glass-strong: color-mix(in srgb, var(--mat-sys-surface) 82%, transparent);
+  --ui-glass-soft: color-mix(in srgb, var(--mat-sys-surface-container) 72%, transparent);
+  --ui-hairline: color-mix(in srgb, var(--mat-sys-outline-variant) 78%, transparent);
+}
+
+/* ─── Dark theme ──────────────────────────────────────────────────────────── */
+html.dark {
+  color-scheme: dark;
+  @include mat.theme((
+    color: (
+      theme-type: dark,
+      primary: mat.$azure-palette,
+    ),
+  ));
+
+  --ui-glass-strong: color-mix(in srgb, var(--mat-sys-surface) 70%, transparent);
+  --ui-glass-soft: color-mix(in srgb, var(--mat-sys-surface-container) 58%, transparent);
+  --ui-hairline: color-mix(in srgb, var(--mat-sys-outline-variant) 72%, transparent);
+}
+
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--mat-sys-background);
+  color: var(--mat-sys-on-background);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+}
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--mat-sys-outline-variant); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--mat-sys-outline); }

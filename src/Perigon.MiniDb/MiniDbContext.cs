@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Linq.Expressions;
 using System.Reflection;
 
@@ -6,12 +7,13 @@ namespace Perigon.MiniDb;
 
 /// <summary>
 /// Main database context with DbSet management and SaveChanges.
-/// DbContext instances only operate on shared in-memory data, never directly on files.
-/// File operations are handled by the shared write queue.
+/// DbContext instances operate on in-memory data, never directly on files.
+/// SaveChanges writes directly to the database file.
 /// </summary>
 public abstract class MiniDbContext : IDisposable, IAsyncDisposable
 {
     private readonly string _filePath;
+    private readonly string _normalizedFilePath;
     private readonly StorageManager _storageManager;
     private readonly ChangeTracker _changeTracker;
     private readonly FileDataCache _sharedCache;
@@ -26,6 +28,10 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
     // Cache for typed save delegates to avoid reflection in SaveChanges hot path
     private static readonly ConcurrentDictionary<Type,
         Func<MiniDbContext, string, IReadOnlyList<object>, IReadOnlyList<object>, IReadOnlyList<object>, CancellationToken, Task>> _saveDelegatesCache = new();
+    // Cache for typed table reload delegates to avoid reflection in refresh path
+    private static readonly ConcurrentDictionary<Type, Action<MiniDbContext, string>> _reloadDelegatesCache = new();
+    // In-process per-file write gate to avoid concurrent write handle conflicts.
+    private static readonly ConcurrentDictionary<string, SemaphoreSlim> _fileWriteGates = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MiniDbContext"/> class.
@@ -35,9 +41,11 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
     {
         var options = MiniDbConfiguration.GetOptions(GetType());
         _filePath = options.FilePath!;
+        _normalizedFilePath = Path.GetFullPath(_filePath);
+        MiniDbDiagnostics.Info($"Context initializing: {GetType().Name}, file='{_filePath}'");
         
-        _sharedCache = SharedDataCache.GetOrCreateCache(_filePath);
-        _storageManager = new StorageManager(_filePath, _sharedCache.WriteQueue);
+        _sharedCache = new FileDataCache();
+        _storageManager = new StorageManager(_filePath);
         _changeTracker = new ChangeTracker();
 
         InitializeDbSets();
@@ -114,20 +122,20 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
 
     private async Task LoadAndSetPropertyAsync<T>(PropertyInfo property, string tableName, CancellationToken cancellationToken) where T : class, IMicroEntity, new()
     {
-        var dbSet = await LoadTableHelperAsync<T>(tableName, cancellationToken);
+        var dbSet = await LoadTableHelperAsync<T>(tableName, cancellationToken).ConfigureAwait(false);
         property.SetValue(this, dbSet);
         _dbSets[tableName] = dbSet;
     }
 
     private async Task<DbSet<T>> LoadTableHelperAsync<T>(string tableName, CancellationToken cancellationToken = default) where T : class, IMicroEntity, new()
     {
-        // Load entities from shared cache (or from storage if not cached)
+        // Load entities from this context cache (or from storage if not cached)
         var entities = await _sharedCache.GetOrLoadTableDataAsync<T>(tableName,
-            async () => await _storageManager.LoadTableAsync<T>(tableName, cancellationToken),
-            cancellationToken);
+            () => _storageManager.LoadTableAsync<T>(tableName, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
 
-        // Create and return DbSet instance with shared cache for synchronization
-        return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache);
+        // Create and return DbSet instance with context-local cache for synchronization
+        return new DbSet<T>(entities, _changeTracker, tableName, _sharedCache, EnsureDataFreshForQuery);
     }
 
     /// <summary>
@@ -155,7 +163,12 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
             throw new ObjectDisposedException(GetType().Name);
         }
 
-        await _sharedCache.EnterWriteLockAsync(cancellationToken);
+        EnsureDataFreshForSave();
+
+        var writeGate = _fileWriteGates.GetOrAdd(_normalizedFilePath, static _ => new SemaphoreSlim(1, 1));
+        await writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        await _sharedCache.EnterWriteLockAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var snapshot = _changeTracker.CreateSnapshot();
@@ -223,7 +236,99 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
         finally
         {
             _sharedCache.ExitWriteLockAsync();
+            writeGate.Release();
         }
+    }
+
+    private void EnsureDataFreshForQuery()
+    {
+        EnsureDataFreshCore(isSaveOperation: false);
+    }
+
+    private void EnsureDataFreshForSave()
+    {
+        EnsureDataFreshCore(isSaveOperation: true);
+    }
+
+    private void EnsureDataFreshCore(bool isSaveOperation)
+    {
+        if (_disposed)
+        {
+            throw new ObjectDisposedException(GetType().Name);
+        }
+
+        if (!_storageManager.HasExternalUpdates())
+        {
+            return;
+        }
+
+        _sharedCache.EnterWriteLock();
+        try
+        {
+            if (!_storageManager.HasExternalUpdates())
+            {
+                return;
+            }
+
+            if (_changeTracker.HasChanges)
+            {
+                if (isSaveOperation)
+                {
+                    // Keep save path compatible with concurrent writers:
+                    // StorageManager.SaveChangesAsync will re-read file header metadata
+                    // and assign append IDs at write time.
+                    return;
+                }
+
+                var operation = isSaveOperation ? "save" : "query";
+                throw new InvalidOperationException(
+                    $"External updates were detected before {operation}. Current context has pending local changes. " +
+                    "Please create a new context or clear/reapply local changes to avoid stale-write conflicts.");
+            }
+
+            ReloadAllTablesInPlace();
+        }
+        finally
+        {
+            _sharedCache.ExitWriteLock();
+        }
+    }
+
+    private void ReloadAllTablesInPlace()
+    {
+        foreach (var (tableName, entityType) in _tableTypes)
+        {
+            var reloader = _reloadDelegatesCache.GetOrAdd(entityType, static t =>
+            {
+                var method = typeof(MiniDbContext)
+                    .GetMethod(nameof(ReloadTableInPlace), BindingFlags.NonPublic | BindingFlags.Instance)!
+                    .MakeGenericMethod(t);
+
+                var ctxParam = Expression.Parameter(typeof(MiniDbContext), "ctx");
+                var tableNameParam = Expression.Parameter(typeof(string), "tableName");
+                var body = Expression.Call(ctxParam, method, tableNameParam);
+
+                return Expression.Lambda<Action<MiniDbContext, string>>(body, ctxParam, tableNameParam).Compile();
+            });
+
+            reloader(this, tableName);
+        }
+    }
+
+    private void ReloadTableInPlace<TEntity>(string tableName) where TEntity : class, IMicroEntity, new()
+    {
+        var latest = _storageManager.LoadTable<TEntity>(tableName);
+
+        if (_dbSets.TryGetValue(tableName, out var dbSet) && dbSet is DbSet<TEntity> typedDbSet)
+        {
+            typedDbSet.ReplaceAllFromStore(latest, assumeWriteLockHeld: true);
+            return;
+        }
+
+        var replacement = new DbSet<TEntity>(latest, _changeTracker, tableName, _sharedCache, EnsureDataFreshForQuery);
+        var property = GetType().GetProperty(tableName, BindingFlags.Public | BindingFlags.Instance);
+        property?.SetValue(this, replacement);
+        _dbSets[tableName] = replacement;
     }
 
     private async Task SaveTableChangesTypedAsync<TEntity>(
@@ -248,10 +353,7 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
             return;
 
         _disposed = true;
-
-        // Note: We do NOT release the shared cache here.
-        // The cache persists across DbContext instances.
-        // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
+        _sharedCache.Dispose();
 
         GC.SuppressFinalize(this);
     }
@@ -262,53 +364,28 @@ public abstract class MiniDbContext : IDisposable, IAsyncDisposable
             return;
 
         _disposed = true;
-
-        // Note: We do NOT release the shared cache here.
-        // The cache persists across DbContext instances.
-        // Call SharedDataCache.ReleaseCache() explicitly when you want to free memory.
-
+        _sharedCache.Dispose();
         await Task.CompletedTask;
         GC.SuppressFinalize(this);
-    }
-
-    /// <summary>
-    /// Explicitly releases the shared memory cache for the database file.
-    /// Call this when you want to free memory resources.
-    /// All pending writes will be flushed before releasing.
-    /// </summary>
-    public static void ReleaseSharedCache(string filePath)
-    {
-        var normalizedPath = Path.GetFullPath(filePath);
-        var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
-
-        // Flush any pending writes before releasing
-        // Use Task.Run to avoid potential deadlocks in synchronization contexts
-        Task.Run(async () => await cache.WriteQueue.FlushAsync().ConfigureAwait(false)).GetAwaiter().GetResult();
-
-        SharedDataCache.ReleaseCache(normalizedPath);
-    }
-
-    /// <summary>
-    /// Explicitly releases the shared memory cache for the database file (async version).
-    /// Call this when you want to free memory resources.
-    /// All pending writes will be flushed before releasing.
-    /// </summary>
-    public static async Task ReleaseSharedCacheAsync(string filePath)
-    {
-        var normalizedPath = Path.GetFullPath(filePath);
-        var cache = SharedDataCache.GetOrCreateCache(normalizedPath);
-
-        // Flush any pending writes before releasing
-        await cache.WriteQueue.FlushAsync().ConfigureAwait(false);
-
-        SharedDataCache.ReleaseCache(normalizedPath);
     }
 
     private void LoadAllTablesSynchronously()
     {
         // Use GetAwaiter().GetResult() to synchronously wait for async operation
         // This is acceptable for small databases (≤50MB) as per design goals
-        var task = LoadAllTablesAsync(CancellationToken.None);
-        task.GetAwaiter().GetResult();
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var task = LoadAllTablesAsync(CancellationToken.None);
+            task.GetAwaiter().GetResult();
+            sw.Stop();
+            MiniDbDiagnostics.Info($"LoadAllTables completed for {GetType().Name} in {sw.ElapsedMilliseconds}ms");
+        }
+        catch (Exception ex)
+        {
+            sw.Stop();
+            MiniDbDiagnostics.Error($"LoadAllTables failed for {GetType().Name} after {sw.ElapsedMilliseconds}ms: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 }

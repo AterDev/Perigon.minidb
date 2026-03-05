@@ -11,7 +11,7 @@
 - **💾 单文件存储**：所有数据存储在一个二进制文件中
 - **⚡ 内存操作**：全量数据加载到内存，LINQ查询性能极佳
 - **📝 增量更新**：只写入修改的记录，避免全量写入
-- **🔒 线程安全**：共享内存架构，单线程文件写入队列
+- **🔒 线程安全**：上下文内读写安全、同一文件写入串行（SaveChanges 直接落盘）
 - **🎯 简单API**：类似 EF Core 的使用体验，无需复杂配置
 - **🔧 零依赖**：完全自包含实现，无需外部库
 - **✅ 类型安全**：强类型实体模型，编译时检查
@@ -149,8 +149,8 @@ await using (db)
     await db.SaveChangesAsync();
 }
 
-// 显式释放共享内存缓存（可选，通常在应用退出时调用）
-await MiniDbContext.ReleaseSharedCacheAsync("app.mds");
+// 说明：不再提供 ReleaseSharedCache* API。
+// 上下文销毁后其内存缓存随实例释放；持久化由 SaveChangesAsync 负责。
 ```
 
 ## 📊 支持的数据类型
@@ -338,17 +338,17 @@ await using (db)
 
 **注意事项**：
 1. ✅ 构造函数会同步加载数据（对于小数据库 ≤50MB 很快）
-2. ✅ 多个上下文实例共享内存数据（高效）
+2. ✅ 每个上下文实例拥有独立内存缓存（隔离）
 3. ✅ 类似 EF Core 的使用体验，无需额外步骤
 
-### 共享内存架构
+### 上下文内存架构
 
 ```csharp
-// 同一文件的多个上下文共享内存
+// 同一文件可创建多个上下文（内存彼此独立）
 var db1 = new MyDbContext("app.mds");
 var db2 = new MyDbContext("app.mds");
 
-// db1 和 db2 看到的是同一份内存数据
+// db1 和 db2 各自维护内存数据；对同一文件保存后可通过版本检测触发刷新
 db1.Users.Add(new User 
 { 
     Name = "Alice",
@@ -360,22 +360,19 @@ db1.Users.Add(new User
 });
 await db1.SaveChangesAsync();
 
-// db2 立即看到变化，无需刷新
-Console.WriteLine(db2.Users.Count);  // 输出: 1
+// db2 在后续查询/保存路径会检查文件头版本并自动刷新
+Console.WriteLine(db2.Users.Count);
 ```
 
-### 显式内存管理
+### 上下文生命周期
 
 ```csharp
-// DbContext 销毁时不会释放共享内存
+// DbContext 销毁时会释放该实例的内存缓存
 var db = new MyDbContext("app.mds");
 await using (db)
 {
     // 使用数据库
-} // Dispose 时内存仍保留
-
-// 需要释放内存时显式调用
-await MyDbContext.ReleaseSharedCacheAsync("app.mds");
+} // Dispose 时实例内存释放
 ```
 
 ### 软删除机制
@@ -562,13 +559,13 @@ for (int i = 0; i < 1000; i++)
 - **文件I/O是主要瓶颈**：每次 `SaveChangesAsync` 涉及磁盘写入
 - **单次保存延迟**：~30ms（文件打开、写入、Flush、关闭）
 - **批量操作优势**：1000条记录 < 100ms（一次文件操作）
-- **写入队列串行化**：保证数据一致性，但会将并发写入排队
+- **SaveChanges 直接落盘**：保证每次提交后数据已持久化
 
 ### 推荐配置
 - **记录数**：≤ 100,000
 - **文件大小**：≤ 50MB
 - **内存占用**：≈ 文件大小
-- **并发读取**：无限制
-- **并发写入**：串行化（单线程队列）
+- **并发读取**：支持并行
+- **并发写入**：同一文件在同一进程内串行化提交（由文件级写门闩保证）
 - **单次SaveChanges延迟**：~30ms
 - **批量操作吞吐量**：10,000+ 记录/秒

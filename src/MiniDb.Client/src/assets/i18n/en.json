@@ -1,0 +1,115 @@
+{
+  "app": {
+    "title": "MiniDb Client",
+    "version": "v0.1.0"
+  },
+  "nav": {
+    "connections": "Connections",
+    "database": "Database"
+  },
+  "theme": {
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "toggle": "Toggle Theme"
+  },
+  "menu": {
+    "connection": "Connection",
+    "appearance": "Appearance",
+    "help": "Help",
+    "connectionManager": "Connection Manager",
+    "database": "Database",
+    "refreshDatabase": "Refresh Database",
+    "about": "About"
+  },
+  "language": {
+    "en": "English",
+    "zhCN": "中文"
+  },
+  "connection": {
+    "add": "Add Connection",
+    "edit": "Edit Connection",
+    "delete": "Delete Connection",
+    "deleteConfirm": "Are you sure you want to delete this connection?",
+    "deleteConfirmNamed": "Delete \"{{name}}\"?",
+    "name": "Connection Name",
+    "path": "Database File Path",
+    "browse": "Browse...",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "refresh": "Refresh",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "noConnections": "No connections. Click 'Add Connection' to get started.",
+    "lastConnected": "Last connected",
+    "lastError": "Connection error",
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "table": {
+    "noSelection": "Select a table from the left panel",
+    "noTables": "No tables",
+    "noData": "No data in this table",
+    "loading": "Loading...",
+    "total": "Total",
+    "filtered": "Filtered",
+    "records": "records"
+  },
+  "filter": {
+    "title": "Filter",
+    "field": "Field",
+    "operator": "Operator",
+    "value": "Value",
+    "valueTo": "To",
+    "apply": "Apply",
+    "clear": "Clear",
+    "contains": "Contains",
+    "equals": "Equals",
+    "startsWith": "Starts with",
+    "endsWith": "Ends with",
+    "gt": "Greater than",
+    "lt": "Less than",
+    "gte": "Greater than or equal",
+    "lte": "Less than or equal",
+    "range": "Range"
+  },
+  "pagination": {
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page",
+    "of": "of",
+    "pageSize": "Page size"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Theme",
+    "language": "Language",
+    "mica": "Windows Mica Effect"
+  },
+  "error": {
+    "connectFailed": "Connection failed",
+    "loadFailed": "Failed to load data",
+    "saveFailed": "Failed to save",
+    "invalidFile": "Invalid or unsupported file"
+  },
+  "status": {
+    "ready": "Ready",
+    "stackInfo": "Tauri 2 + Angular",
+    "connecting": "Connecting to {{name}}...",
+    "connectedAs": "Connected: {{name}}",
+    "disconnected": "Disconnected",
+    "notConnectedHint": "Please connect to a database first",
+    "refreshingDatabase": "Refreshing database...",
+    "refreshFailed": "Refresh failed: {{reason}}",
+    "loadFailed": "Data load failed: {{reason}}",
+    "disconnectFailed": "Disconnect failed: {{reason}}",
+    "connectFailed": "Connection failed: {{reason}}"
+  },
+  "common": {
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "close": "Close",
+    "loading": "Loading..."
+  }
+}

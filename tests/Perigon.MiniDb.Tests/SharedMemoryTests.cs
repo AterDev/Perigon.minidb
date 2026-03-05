@@ -23,7 +23,6 @@ public class SharedMemoryTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await SharedMemoryTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         await Task.Delay(10);
         
         if (File.Exists(_testDbPath))
@@ -145,7 +144,7 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task Context_DisposeDoesNotReleaseSharedMemory()
+    public async Task Context_DisposeAndReopen_LoadsDataFromFile()
     {
         // Create and dispose first context
         var db1 = new SharedMemoryTestDbContext();
@@ -153,7 +152,7 @@ public class SharedMemoryTests : IAsyncDisposable
         await db1.SaveChangesAsync();
         await db1.DisposeAsync();
         
-        // Create new context - should still see data (shared memory not released)
+        // Create new context - should still see data from file
         var db2 = new SharedMemoryTestDbContext();
         Assert.Equal(1, db2.Users.Count);
         Assert.Equal("Eve", db2.Users.First().Name);
@@ -162,15 +161,12 @@ public class SharedMemoryTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task CacheRelease_ForcesReloadFromFile()
+    public async Task ReopenContext_LoadsFromFile()
     {
         var db1 = new SharedMemoryTestDbContext();
         db1.Users.Add(new User { Name = "Eve", Email = "eve@example.com", Age = 28, Balance = 800m, CreatedAt = DateTime.UtcNow, IsActive = true });
         await db1.SaveChangesAsync();
         await db1.DisposeAsync();
-        
-        // Release cache
-        await SharedMemoryTestDbContext.ReleaseSharedCacheAsync(_testDbPath);
         
         // New context should load from file
         var db2 = new SharedMemoryTestDbContext();
@@ -282,5 +278,87 @@ public class SharedMemoryTests : IAsyncDisposable
         var finalDb = new SharedMemoryTestDbContext();
         Assert.Equal(10, finalDb.Users.Count);
         await finalDb.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ExternalUpdate_QueryAutoRefreshesInMemoryData()
+    {
+        await using var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User
+        {
+            Name = "Local-A",
+            Email = "local-a@example.com",
+            Age = 30,
+            Balance = 100m,
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
+        });
+        await db1.SaveChangesAsync();
+
+        await using (var db2 = new SharedMemoryTestDbContext())
+        {
+            db2.Users.Add(new User
+            {
+                Name = "External-B",
+                Email = "external-b@example.com",
+                Age = 31,
+                Balance = 200m,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+            await db2.SaveChangesAsync();
+        }
+
+        // db1 should auto-refresh by detecting file header version change.
+        Assert.Equal(2, db1.Users.Count);
+        Assert.Contains(db1.Users, u => u.Name == "Local-A");
+        Assert.Contains(db1.Users, u => u.Name == "External-B");
+    }
+
+    [Fact]
+    public async Task ExternalUpdate_WithPendingLocalChanges_QueryThrowsConflict()
+    {
+        await using var db1 = new SharedMemoryTestDbContext();
+        db1.Users.Add(new User
+        {
+            Name = "Seed",
+            Email = "seed@example.com",
+            Age = 20,
+            Balance = 10m,
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
+        });
+        await db1.SaveChangesAsync();
+
+        // db1 now has unsaved local changes.
+        db1.Users.Add(new User
+        {
+            Name = "Pending-Local",
+            Email = "pending-local@example.com",
+            Age = 21,
+            Balance = 11m,
+            CreatedAt = DateTime.UtcNow,
+            IsActive = true
+        });
+
+        await using (var db2 = new SharedMemoryTestDbContext())
+        {
+            db2.Users.Add(new User
+            {
+                Name = "External-Change",
+                Email = "external-change@example.com",
+                Age = 22,
+                Balance = 12m,
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            });
+            await db2.SaveChangesAsync();
+        }
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+        {
+            _ = db1.Users.Count;
+        });
+        Assert.Contains("External updates were detected", ex.Message);
     }
 }
